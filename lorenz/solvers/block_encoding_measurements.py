@@ -46,10 +46,10 @@ RHO = 28.0             # Rayleigh number
 BETA = 8.0 / 3.0       # Physical proportion
 
 X0, Y0, Z0 = 1.0, 1.0, 1.0
-T_FINAL = 20.0
+T_FINAL = 10.0
 N_STEPS = int(T_FINAL / DT)
-BASE_SHOTS = 20000     # Default simulated hardware shots
-BOOST_SHOTS = 1000000  # Quantum Microscope: enhanced shots for extremely low amplitudes
+BASE_SHOTS = 50000     # Default simulated hardware shots
+BOOST_SHOTS = 100000   # Quantum Microscope: enhanced shots for extremely low amplitudes
 
 SAVE_DIR = os.path.join(os.path.dirname(__file__), "..", "figures")
 
@@ -59,7 +59,7 @@ SAVE_DIR = os.path.join(os.path.dirname(__file__), "..", "figures")
 # ---------------------------------------------------------------------------
 def next_step_measured(input_state_scaled: np.ndarray, physical_state: np.ndarray, 
                        alpha: float, U_gate: UnitaryGate, 
-                       simulator: AerSimulator, dim: int, total_qubits: int):
+                       simulator: AerSimulator, dim: int, total_qubits: int, step: int):
     """
     Applies the unitary block-encoded gate to the SCALED vector, executes 
     Z-basis measurements, and applies a classical continuity heuristic using 
@@ -91,7 +91,7 @@ def next_step_measured(input_state_scaled: np.ndarray, physical_state: np.ndarra
     
     # Check if any fundamental physical coordinate hit the resolution floor
     if counts.get('0000', 0) == 0 or counts.get('0001', 0) == 0 or counts.get('0010', 0) == 0:
-        print(f"    [Shot Boost] Amplitud crítica de X, Y o Z detectada. Re-ejecutando con {BOOST_SHOTS} shots...")
+        print(f"    [Shot Boost] Step {step:4d} | Amplitud crítica de X, Y o Z detectada. Re-ejecutando con {BOOST_SHOTS} shots...")
         current_shots = BOOST_SHOTS
         result = simulator.run(qc, shots=current_shots).result()
         counts = result.get_counts()
@@ -228,7 +228,7 @@ def main():
         current_sv_scaled = S @ current_sv
             
         # Apply linear operator + measurements + sign heuristic in SCALED subspace
-        output_scaled = next_step_measured(current_sv_scaled, current_sv, alpha, U_gate, simulator, dim, total_qubits)
+        output_scaled = next_step_measured(current_sv_scaled, current_sv, alpha, U_gate, simulator, dim, total_qubits, step)
         
         # Un-scale the result back to physical coordinates
         output_sv = inv_S @ output_scaled
