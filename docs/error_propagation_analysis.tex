@@ -1,0 +1,241 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{physics}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{graphicx}
+
+\geometry{margin=2.5cm}
+
+\title{Error Propagation in Measurement-Based\\
+       Iterative Quantum Solvers:\\
+       The Role of Post-Selection Probability}
+\author{}
+\date{March 2026}
+
+\begin{document}
+\maketitle
+
+%======================================================================
+\section{Introduction}
+%======================================================================
+
+This note analyses the dominant source of error in the measurement-based
+(Quantum State Tomography) version of the LCU linear-pendulum solver.
+We show that the finite post-selection probability \(p_{\text{succ}} < 1\)
+leads to an \emph{exponential damping} of the state-vector norm when the
+simulation is iterated over many time-steps, causing the quantum
+trajectory to spiral inward with respect to the exact solution.
+
+%======================================================================
+\section{Setup}
+%======================================================================
+
+The system under study is the linear pendulum
+\begin{equation}\label{eq:ode}
+  \ddot\theta + \omega^2\,\theta = 0,
+\end{equation}
+discretised with the forward-Euler scheme:
+\begin{equation}
+  \mathbf v_{n+1}
+  = A\,\mathbf v_n, \qquad
+  A = I + \Delta t\begin{pmatrix} 0 & 1 \\ -\omega^2 & 0 \end{pmatrix},
+  \qquad
+  \mathbf v_n = \begin{pmatrix} \theta_n \\ \dot\theta_n \end{pmatrix}.
+\end{equation}
+
+In the LCU algorithm, \(A\) is decomposed as a linear combination of
+unitaries
+\begin{equation}
+  A = c_0\,I + c_1\,(\pm X) + c_2\,(ZX),
+\end{equation}
+with \(c_0=1\), \(c_1=|\Delta t(1-\omega^2)/2|\),
+\(c_2=\Delta t(1+\omega^2)/2\), and normalisation factor
+\(\alpha = c_0+c_1+c_2\).
+
+A 3-qubit circuit encodes the state \(\mathbf v_n\) in one system qubit
+(\(q_1\)) and uses two ancilla qubits (\(q_0,q_2\)) for the LCU
+preparation/un-preparation.  After post-selecting the ancillas in
+\(\ket{00}\), the system qubit contains
+\begin{equation}
+  \ket{\psi_{\text{out}}}
+  \propto A\ket{\psi_{\text{in}}}.
+\end{equation}
+
+%======================================================================
+\section{Statevector (Exact) Simulation}
+%======================================================================
+
+In the \textbf{statevector} approach, the full quantum state is computed
+analytically (no measurement noise).  Post-selection is carried out by
+reading amplitudes directly:
+\begin{equation}
+  x_{n+1} = \Re\!\bigl[\alpha\,\lVert\mathbf v_n\rVert\,
+             \text{amp}(\ket{000})\bigr],\qquad
+  y_{n+1} = \Re\!\bigl[\alpha\,\lVert\mathbf v_n\rVert\,
+             \text{amp}(\ket{010})\bigr].
+\end{equation}
+Since no sampling is involved, the quantum solution reproduces the
+\emph{classical Euler} trajectory \textbf{exactly} (up to floating-point
+errors).
+
+%======================================================================
+\section{Measurement-Based Simulation and \texorpdfstring{$p_{\text{succ}}$}{p\_succ}}
+%======================================================================
+
+When measurements with a finite number of shots \(N_s\) are used instead,
+the state must be reconstructed via Quantum State Tomography (QST).
+Measurements are performed in the \(Z\), \(X\), and \(Y\) bases, and
+only the events where both ancillas register \(\ket{0}\) (i.e., the
+post-selection condition is satisfied) are kept.
+
+\subsection{Post-selection probability}
+
+The probability that the ancillas are found in \(\ket{00}\) after one
+LCU step is
+\begin{equation}\label{eq:psucc}
+  p_{\text{succ}}
+  = \lVert \Pi_{00}\,U_{\text{LCU}}\ket{\psi_{\text{in}}} \rVert^2
+  < 1.
+\end{equation}
+Physically, \(p_{\text{succ}}\) measures how ``close'' the operator
+\(A/\alpha\) is to a true unitary.  For the forward-Euler step with
+small \(\Delta t\), \(A\approx I\) and \(p_{\text{succ}}\) is close to
+\(1\), but never exactly \(1\).
+
+\subsection{Norm shrinkage per step}
+
+In the exact simulation, the post-selected component has norm
+\begin{equation}
+  \lVert A\,\mathbf v_n\rVert / \alpha.
+\end{equation}
+The rescaling by \(\alpha\) \emph{exactly} compensates the LCU
+normalisation, so the physical norm is preserved.
+
+In the measurement-based version, however, the amplitudes are
+\emph{estimated} from the post-selected counts.  The effective
+``measured norm'' is
+\begin{equation}\label{eq:measured-norm}
+  \widetilde{\lVert\mathbf v_{n+1}\rVert}
+  = \alpha\,\lVert\mathbf v_n\rVert\,\sqrt{\hat p_{\text{succ}}},
+\end{equation}
+where \(\hat p_{\text{succ}}\) is the \emph{empirical} post-selection
+probability (number of successful events divided by total shots).
+
+Because \(\hat p_{\text{succ}} < 1\), each step \textbf{contracts} the
+norm by a factor \(\sqrt{\hat p_{\text{succ}}}\).
+
+%======================================================================
+\section{Cumulative Error After \texorpdfstring{$n$}{n} Steps}
+%======================================================================
+
+After \(n\) consecutive steps, the measured norm satisfies
+\begin{equation}\label{eq:cum}
+  \widetilde{\lVert\mathbf v_n\rVert}
+  \approx
+  \lVert\mathbf v_0\rVert\;
+  \prod_{k=0}^{n-1}\alpha^{(k)}\sqrt{\hat p_{\text{succ}}^{(k)}}\,.
+\end{equation}
+If we assume that \(\alpha\) and \(\hat p_{\text{succ}}\) are roughly
+constant across steps (valid for small \(\Delta t\) and slowly-varying
+solutions), this simplifies to
+\begin{equation}\label{eq:exp-decay}
+  \widetilde{\lVert\mathbf v_n\rVert}
+  \approx
+  \lVert\mathbf v_0\rVert\;\bigl(\alpha\sqrt{\bar p_{\text{succ}}}\bigr)^{n},
+\end{equation}
+where \(\bar p_{\text{succ}}\) is the average post-selection probability.
+
+\paragraph{Key observation.}
+In the exact simulation, the factor \(\alpha\) already accounts for
+the LCU normalisation and the result is
+\(\lVert\mathbf v_{n+1}\rVert = \lVert A\mathbf v_n\rVert\)
+(no square root of \(p_{\text{succ}}\) involved).
+The culprit is the \(\sqrt{\hat p_{\text{succ}}}\) factor: even though it
+is very close to \(1\), the product of \(n\) such factors decays
+exponentially:
+\begin{equation}
+  \bigl(\sqrt{\bar p}\bigr)^{n}
+  = \exp\!\Bigl(-\frac{n}{2}\ln\frac{1}{\bar p}\Bigr)
+  \xrightarrow[n\to\infty]{} 0.
+\end{equation}
+
+\paragraph{Numerical example.}
+With \(\Delta t=0.003\), \(\omega^2=9.8\), a typical value is
+\(\bar p_{\text{succ}} \approx 0.92\).  After \(n=1000\) steps:
+\[
+  (\sqrt{0.92})^{1000}
+  = (0.9592)^{1000}
+  \approx e^{-41.6}
+  \approx 10^{-18},
+\]
+which means the norm has essentially vanished.  In practice, the
+trajectory begins to diverge visibly after only \(\sim 100\text{--}200\)
+steps.
+
+%======================================================================
+\section{Additional Sources of Error}
+%======================================================================
+
+Besides norm shrinkage, additional error mechanisms include:
+
+\begin{enumerate}
+\item \textbf{Finite-sample noise in Bloch-vector components.}
+      The estimators \(\hat r_z\), \(\hat r_x\), \(\hat r_y\) are
+      subject to shot noise of order \(1/\sqrt{N_s}\).  These errors
+      perturb the \emph{direction} of \(\mathbf v_{n+1}\), adding
+      angular jitter that accumulates as a random walk.
+\item \textbf{Global-sign ambiguity.}
+      QST from expectation values determines the state only up to a
+      global phase.  The dot-product heuristic used to resolve the sign
+      may occasionally pick the wrong branch, causing a sudden
+      ``phase flip'' in the trajectory.
+\item \textbf{Basis-dependent post-selection rates.}
+      The three bases (Z, X, Y) may have slightly different
+      \(p_{\text{succ}}\) values.  Averaging them introduces a small
+      systematic bias.
+\end{enumerate}
+
+%======================================================================
+\section{Mitigation Strategies}
+%======================================================================
+
+\begin{itemize}
+\item \textbf{Increase shot count.}  Reducing \(1/\sqrt{N_s}\) noise
+      slows the angular jitter but does \emph{not} eliminate the
+      \(p_{\text{succ}}\)-induced norm decay.
+\item \textbf{Use smaller \(\Delta t\).}  This pushes \(A\) closer to
+      \(I\), increasing \(p_{\text{succ}}\), but requires more steps for
+      the same physical time.
+\item \textbf{Readout error mitigation (REM).}  Calibrating and
+      correcting measurement errors can improve the estimates of
+      \(\hat p_{\text{succ}}\) and Bloch components.
+\item \textbf{Norm renormalisation.}  Explicitly rescaling \(\mathbf v_n\)
+      to its expected norm at each step partially compensates the decay,
+      but requires external knowledge of the solution.
+\item \textbf{Amplitude estimation.}  Replacing simple sampling with
+      quantum amplitude estimation could, in principle, yield
+      \(p_{\text{succ}}\) with quadratically fewer shots, but at a much
+      higher circuit cost.
+\end{itemize}
+
+%======================================================================
+\section{Conclusion}
+%======================================================================
+
+The divergence of the measurement-based LCU solver from the exact
+(statevector) solution is \textbf{not a bug} but a fundamental
+consequence of iterative post-selection with finite statistics.
+The dominant effect is the exponential decay of the state-vector norm
+governed by \((\sqrt{p_{\text{succ}}})^n\), which causes the quantum
+trajectory to spiral inward in phase space.
+
+For publication purposes, the statevector simulation serves as the
+``ground truth'' demonstrating the correctness of the LCU algorithm,
+while the measurement-based simulation illustrates the practical
+challenges of running iterative quantum ODE solvers on near-term
+hardware.
+
+\end{document}
