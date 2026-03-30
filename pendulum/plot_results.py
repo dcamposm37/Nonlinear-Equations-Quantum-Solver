@@ -82,7 +82,8 @@ def plot_pendulum_comparison(
     axes[2].set_title("Phase space")
     axes[2].legend()
     axes[2].grid(True)
-    axes[2].set_aspect("equal")
+    # axes[2].set_aspect("equal")
+    axes[2].set_aspect("auto")
 
     fig.suptitle(title, fontsize=14)
     fig.tight_layout()

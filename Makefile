@@ -58,16 +58,21 @@ run-lcu-nlin-meas:
 
 .PHONY: run-rot-lin-sv run-rot-lin-meas run-rot-nlin-sv run-rot-nlin-meas
 run-rot-lin-sv:
-	@echo "[TODO] Rotations linear statevector not yet implemented."
+	$(PYTHON) -m pendulum.rotations.linear_statevector
 
 run-rot-lin-meas:
-	@echo "[TODO] Rotations linear measurements not yet implemented."
+	$(PYTHON) -m pendulum.rotations.linear_measurements
 
 run-rot-nlin-sv:
-	@echo "[TODO] Rotations nonlinear statevector not yet implemented."
+	$(PYTHON) -m pendulum.rotations.nonlinear_statevector
 
 run-rot-nlin-meas:
-	@echo "[TODO] Rotations nonlinear measurements not yet implemented."
+	$(PYTHON) -m pendulum.rotations.nonlinear_measurements
+
+# ---- Lorenz solvers ---------------------------------------------------------
+.PHONY: run-lorenz-be-sv
+run-lorenz-be-sv:
+	$(PYTHON) -m lorenz.solvers.block_encoding_statevector
 
 # ---- Batch targets ----------------------------------------------------------
 .PHONY: run-all-sv run-all-meas run-all figures

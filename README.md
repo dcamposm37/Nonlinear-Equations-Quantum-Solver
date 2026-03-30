@@ -12,7 +12,7 @@ Lorenz system.
 | **LCU** | Nonlinear pendulum | ✅ | ✅ |
 | **Rotation gates** | Linear pendulum | ✅ | ✅ |
 | **Rotation gates** | Nonlinear pendulum | ✅ | ✅ |
-| **Block encoding** | Lorenz system | 🔲 | 🔲 |
+| **Block encoding** | Lorenz system | ✅ | 🔲 |
 
 ## Repository structure
 
