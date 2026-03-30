@@ -12,7 +12,7 @@ Lorenz system.
 | **LCU** | Nonlinear pendulum | ✅ | ✅ |
 | **Rotation gates** | Linear pendulum | ✅ | ✅ |
 | **Rotation gates** | Nonlinear pendulum | ✅ | ✅ |
-| **Block encoding** | Lorenz system | ✅ | 🔲 |
+| **Block encoding** | Lorenz system | ✅ | ✅ |
 
 ## Repository structure
 
@@ -85,3 +85,12 @@ The divergence mathematically encapsulates the deterministic chaos through 3 dis
 1. **Fidelidad Inicial (Initial Fidelity)**: The algorithmic error rests at the noise floor limit ($\sim 10^{-13}$), validating the extremely high precision of the `sqrtm` block-encoding protocol for the matrix linear transformations.
 2. **Divergencia de Lyapunov (Lyapunov Divergence)**: Starting around $t = 13$, the truncation error and physical floating-point noise compound exponentially. This constant-slope linear ascent in the logarithmic plot is a direct visual proof of the system's dominant positive Lyapunov exponent.
 3. **Saturación (Saturation)**: Approaching $t = 40$, the error divergence reaches a limit around $10^1$. This maximum boundary is imposed purely by the finite geometric topology of the "butterfly" strange attractor.
+
+## The Origin Trap (Trampa de Estado Absorbente)
+
+During QST Measurement-based Block Encoding, we observed a mathematically fascinating phenomenon called an **Absorbing State Trap**. 
+
+Because algorithms like Carleman Embeddings or Block Encoding require padding the vector with nonlinear cross terms (like $x_1 x_3 \approx 500$), the fundamental physical probabilities for $x, y, z$ suffer from **Amplitude Starvation**. Under finite statistical discretization (e.g., 20,000 shots), any chaotic crossing close to zero mathematically rounds to exactly $0$ counts. 
+
+Since $(0,0,0)$ is a saddle-point equilibrium of the Lorenz continuous equations, truncating the variable to true absolute $0.0$ permanently zeroes the differential matrix. Consequently, the chaotic repulsion is neutralized and the system becomes perpetually "trapped" at the origin. 
+**Mitigation:** We implement a $10^{-6}$ stochastic Microscopic Dithering to prevent physical dimensions from becoming flawlessly zero, restoring the true continuous topology on discrete quantum hardware.

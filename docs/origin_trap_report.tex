@@ -1,0 +1,44 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+
+\title{The ``Origin Trap'': Hard-Thresholding Stochastic Failures in NISQ Simulations of Chaotic Attractors}
+\author{Quantum Nonlinear Dynamics Research Group}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We report a fundamental limitation in the simulation of unstable dynamical systems using measurement-based Quantum State Tomography (QST) on noisy intermediate-scale quantum (NISQ) devices. While statevector simulations mathematically validate the application of block-encoding techniques to the Lorenz chaotic attractor, we demonstrate that finite sampling induces a \textit{stochastic hard-thresholding effect}. Specifically, when the probability amplitude of a physical variable diminishes below the discretization limit of the shot count (e.g., $1/N_{shots}$), the coordinate truncates to absolute zero. For unstable equilibria (such as the saddle point at the origin of the Lorenz system), this truncation creates an artificial macroscopic macroscopic ``absorbing state'' trap, irrevocably halting the dynamics—a phenomenon we term the ``Origin Trap''.
+\end{abstract}
+
+\section{Introduction}
+Block-encoding and Carleman embeddings translate nonlinear dynamical systems into high-dimensional linear operators compatible with quantum evolution. Despite exact analytical equivalence (validated through statevector simulations tracking continuous Lyapunov divergence), the physical extraction of these coordinates via QST necessitates finite measurements. Here we analyze the vulnerability of chaotic systems to the resulting shot noise.
+
+\section{The Phenomenon: Amplitude Starvation and the Origin Trap}
+
+\subsection{Amplitude Starvation}
+To linearize the Lorenz system, the state vector is augmented with nonlinear crossterms $x_1 x_3$ and $x_1 x_2$. Because orbital trajectories explore large parameter spaces (e.g., $z \sim 50 \implies xz \sim 1000$), these non-physical terms rapidly dominate the unitary Hilbert space norm. Assuming a normalized quantum vector $\sum |\alpha_i|^2 = 1$, the fundamental physical coordinates $x, y, z$ suffer from \textit{amplitude starvation}, possessing fractional probabilities often falling below precision thresholds.
+
+\subsection{Stochastic Hard-Thresholding}
+A near-term quantum processor evaluates probability via frequency distributions over $N$ shots. If a continuous variable transitions infinitesimally close to an unstable equilibrium saddle point, its abstract probability decays. When $P(x) < 1/N_{shots}$, the discrete nature of hardware sampling rounds the outcome to exactly $0$ counts. 
+
+Unlike classical floating-point environments where infinitesimally small values (e.g., $10^{-16}$) are retained and ultimately repelled by unstable manifolds, the finite-shot quantum environment acts as a deterministic \textit{Hard-Threshold filter}. 
+
+\subsection{The Absorbing State Trap}
+When the physical coordinates measure $0$ counts, the classical tracking step initializes $x_n = 0.0$. If $(x_0, y_0, z_0)$ constitutes a system equilibrium point (such as the continuous origin of the Lorenz attractor), the system differential matrix imposes deterministic stationarity: 
+$$ \mathbf{A} \cdot \vec{0} = \vec{0} $$
+This perfectly zeroed state guarantees that $P(x_{n+1}) = 0$. Consequently, an inherently unstable repelling equilibrium point in differential calculus becomes a perfectly stable \textbf{Absorbing State} under finite-shot quantum discretization. 
+
+\section{Mitigation via Microscopic Dithering}
+To restore the continuous topological properties of the strange attractor against discrete sampling traps, we propose the injection of algorithmic ``dithering''. By perturbing strict zero-count measurements with microscopic white noise $\epsilon \sim 10^{-6}$ (proportional to typical NISQ background noise variance), the system avoids absolute stationarity. This artificial sub-threshold variance prevents irreversible absorption into the Origin Trap, allowing the chaotic manifold's natural repulsivity to gracefully expel the trajectory back into the macroscopic orbit.
+
+\end{document}

@@ -70,9 +70,12 @@ run-rot-nlin-meas:
 	$(PYTHON) -m pendulum.rotations.nonlinear_measurements
 
 # ---- Lorenz solvers ---------------------------------------------------------
-.PHONY: run-lorenz-be-sv
+.PHONY: run-lorenz-be-sv run-lorenz-be-meas
 run-lorenz-be-sv:
 	$(PYTHON) -m lorenz.solvers.block_encoding_statevector
+
+run-lorenz-be-meas:
+	$(PYTHON) -m lorenz.solvers.block_encoding_measurements
 
 # ---- Batch targets ----------------------------------------------------------
 .PHONY: run-all-sv run-all-meas run-all figures
