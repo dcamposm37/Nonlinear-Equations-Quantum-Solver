@@ -7,6 +7,11 @@ the `sqrtm` completion method. The algorithm isolates the linear operator
 step-by-step and treats the nonlinear $xy$ and $xz$ products as classically
 updated auxiliary variables within the statevector.
 
+Recent Optimizations:
+- DT = 0.001 for high precision Euler integration.
+- Matrix U construction and UnitaryGate allocation moved pre-loop.
+- Transpilation skipped for AerSimulator statevector (direct execution).
+
 Usage
 -----
     python -m lorenz.solvers.block_encoding_statevector
@@ -21,10 +26,9 @@ import sys
 import os
 import numpy as np
 import scipy.linalg
-from qiskit import QuantumCircuit, transpile
+from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
 from qiskit.circuit.library import UnitaryGate
-from scipy.linalg import sqrtm
 
 # Allow imports from project root
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -34,7 +38,7 @@ from lorenz.plot_results import plot_lorenz_comparison
 # ---------------------------------------------------------------------------
 # Parameters
 # ---------------------------------------------------------------------------
-DT = 0.01              # Step size (h)
+DT = 0.001             # Step size (h)
 SIGMA = 10.0           # Prandtl number
 RHO = 28.0             # Rayleigh number
 BETA = 8.0 / 3.0       # Physical proportion
@@ -49,61 +53,33 @@ SAVE_DIR = os.path.join(os.path.dirname(__file__), "..", "figures")
 # ---------------------------------------------------------------------------
 # Quantum Block-Encoding Forward Step
 # ---------------------------------------------------------------------------
-def next_step(A: np.ndarray, input_state: np.ndarray):
+def next_step(input_state: np.ndarray, alpha: float, U_gate: UnitaryGate, 
+              simulator: AerSimulator, dim: int, total_qubits: int):
     """
-    Applies the linear matrix A to the input_state via quantum block-encoding.
+    Applies the precalculated unitary block-encoded gate to the input_state.
     """
-    # 1. Validation and Setup
-    dim = A.shape[0]
-    num_qubits = int(np.log2(dim))
-    if 2**num_qubits != dim:
-        raise ValueError("Matrix dimension must be a power of 2.")
-    
     norm = np.linalg.norm(input_state)
     if norm == 0:
         return input_state
     
     initial_normalized = input_state / norm
     
-    # 2. Manual block-encoding (Szegedy-like / sqrtm approach)
-    alpha = np.linalg.norm(A, 2)  # Spectral norm
-    if alpha == 0:
-        alpha = 1e-6
-        
-    A_norm = A / alpha
-    I = np.eye(dim)
-    
-    # sqrtm might return small imaginary parts due to float precision
-    term1 = scipy.linalg.sqrtm((I - A_norm @ A_norm.T).astype(complex))
-    term2 = scipy.linalg.sqrtm((I - A_norm.T @ A_norm).astype(complex))
-    
-    # Block matrix U = [[A/a, .], [., -A^T/a]]
-    U = np.block([
-        [A_norm, term1],
-        [term2, -A_norm.T]
-    ])
-    
-    # 3. Quantum Circuit Definition
-    total_qubits = num_qubits + 1  # 1 ancilla qubit for 2x2 block structure
-    qc = QuantumCircuit(total_qubits)
-    
     # State preparation: |0> \otimes |psi>
     padded_state = np.zeros(2**total_qubits, dtype=complex)
     padded_state[0:dim] = initial_normalized
+    
+    qc = QuantumCircuit(total_qubits)
     qc.initialize(padded_state.tolist(), range(total_qubits))
     
     # Apply unitary U
-    qc.append(UnitaryGate(U), range(total_qubits))
-    
-    # 4. Statevector Simulation
-    simulator = AerSimulator(method='statevector')
-    qc = transpile(qc, simulator)
+    qc.append(U_gate, range(total_qubits))
     qc.save_statevector()
     
+    # Statevector Simulation (direct, no transpile overhead)
     result = simulator.run(qc).result()
     state = result.get_statevector()
     
-    # 5. Post-selection & Re-scaling (Ancilla=0)
+    # Post-selection & Re-scaling (Ancilla=0)
     output_state = state.data[0:dim]
     final_state = np.real(output_state) * alpha * norm
     
@@ -115,10 +91,11 @@ def next_step(A: np.ndarray, input_state: np.ndarray):
 # ---------------------------------------------------------------------------
 def main():
     print(f"Starting Block-Encoding Lorenz simulation with {N_STEPS} steps...")
+    print(f"Using high-precision DT = {DT}")
     
     t_values = np.linspace(0, T_FINAL, N_STEPS + 1)
     
-    # A Matrix definition corresponding to Euler discretization of Lorenz
+    # 1. A Matrix definition corresponding to Euler discretization of Lorenz
     A = np.array([
         [1 - DT * SIGMA, DT * SIGMA, 0,              0,   0, 0, 0, 0],   # x_new
         [DT * RHO,       1 - DT,     0,             -DT,  0, 0, 0, 0],   # y_new (uses xz as 4th element)
@@ -130,7 +107,31 @@ def main():
         [0,              0,          0,              0,   0, 0, 0, 1]
     ], dtype=float)
 
-    # State vector memory: [x, y, z, x*z, x*y, 1, 1, 1]
+    # 2. Block Encoding Matrix Setup (Calculated ONCE)
+    dim = A.shape[0]
+    num_qubits = int(np.log2(dim))
+    total_qubits = num_qubits + 1  # 1 ancilla qubit for 2x2 block structure
+    
+    alpha = np.linalg.norm(A, 2)  # Spectral norm
+    if alpha == 0:
+        alpha = 1e-6
+        
+    A_norm = A / alpha
+    I = np.eye(dim)
+    
+    # sqrtm returns small imaginary parts; np.real strictly enforces hermiticity
+    term1 = np.real(scipy.linalg.sqrtm((I - A_norm @ A_norm.T).astype(complex)))
+    term2 = np.real(scipy.linalg.sqrtm((I - A_norm.T @ A_norm).astype(complex)))
+    
+    U = np.block([
+        [A_norm, term1],
+        [term2, -A_norm.T]
+    ])
+    
+    U_gate = UnitaryGate(U)
+    simulator = AerSimulator(method='statevector')
+
+    # 3. State vector memory: [x, y, z, x*z, x*y, 1, 1, 1]
     current_sv = np.array([X0, Y0, Z0, X0 * Z0, X0 * Y0, 1.0, 1.0, 1.0])
     
     history_x = [X0]
@@ -140,12 +141,12 @@ def main():
     for step in range(N_STEPS):
         if step > 0 and step % (N_STEPS // 10) == 0:
             pct = int(100 * step / N_STEPS)
-            print(f"[{pct:3d}%] Step {step:4d}/{N_STEPS} | Current X,Y,Z: {current_sv[0]:.2f}, {current_sv[1]:.2f}, {current_sv[2]:.2f}")
+            print(f"[{pct:3d}%] Step {step:5d}/{N_STEPS} | Current X,Y,Z: {current_sv[0]:.2f}, {current_sv[1]:.2f}, {current_sv[2]:.2f}")
             
-        # 1. Apply linear operator via quantum block-encoding
-        output_sv = next_step(A, current_sv)
+        # Apply linear operator via precalculated quantum block-encoding
+        output_sv = next_step(current_sv, alpha, U_gate, simulator, dim, total_qubits)
         
-        # 2. Update non-linear tracking (Classical memory element)
+        # Update non-linear tracking (Classical memory element)
         next_sv = np.copy(output_sv)
         next_sv[3] = next_sv[0] * next_sv[2]  # update x*z
         next_sv[4] = next_sv[0] * next_sv[1]  # update x*y
@@ -160,7 +161,6 @@ def main():
         
     print(f"[100%] Step {N_STEPS}/{N_STEPS} | Simulation Complete.")
 
-    # Convert to arrays
     x_q, y_q, z_q = np.array(history_x), np.array(history_y), np.array(history_z)
     
     # -----------------------------------------------------------------------
@@ -168,7 +168,6 @@ def main():
     # -----------------------------------------------------------------------
     t_cl, x_cl, y_cl, z_cl = euler_lorenz(DT, SIGMA, RHO, BETA, X0, Y0, Z0, N_STEPS)
     
-    # Plot results
     plot_lorenz_comparison(
         t_values, x_q, y_q, z_q,
         t_cl, x_cl, y_cl, z_cl,

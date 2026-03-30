@@ -8,6 +8,7 @@ projections.
 """
 
 import os
+import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -93,7 +94,49 @@ def plot_lorenz_comparison(
     fig2d.savefig(path_2d, dpi=150, bbox_inches="tight")
     print(f"[plot_results] 2D Projections saved -> {path_2d}")
     
+    # -----------------------------------------------------------------
+    # Figure 3: Euclidean Error Log Plot
+    # -----------------------------------------------------------------
+    fig_err, ax_err = plt.subplots(figsize=(8, 5))
+    
+    # Calculate Euclidean distance between quantum and classical trajectories
+    # Ensure they are the same length
+    min_len = min(len(x_quantum), len(x_classical))
+    dist = np.sqrt(
+        (x_classical[:min_len] - x_quantum[:min_len])**2 + 
+        (y_classical[:min_len] - y_quantum[:min_len])**2 + 
+        (z_classical[:min_len] - z_quantum[:min_len])**2
+    )
+    t_plot = t_quantum[:min_len]
+    
+    # Plot distance
+    ax_err.plot(t_plot, dist, 'k-', label="Euclidean Distance (Classic vs Quantum)")
+    
+    # Avoid log(0) issues by capping the minimum display value or computing mean of first few steps appropriately
+    # The block encoding algorithm generally introduces an error on step 1 > 0
+    # Let's take the mean of the first 50 steps (or min_len/10 if trajectory is short) to be our "initial average error"
+    initial_window = max(1, min_len // 50)
+    initial_error_avg = np.mean(dist[1:initial_window+1]) if len(dist) > 1 else dist[0]
+    # Fallback if somehow it's exact 0
+    if initial_error_avg == 0:
+        initial_error_avg = 1e-15
+        
+    ax_err.axhline(initial_error_avg, color='r', linestyle='--', 
+                   label=f"Avg Initial Error ({initial_error_avg:.1e})")
+    
+    ax_err.set_yscale('log')
+    ax_err.set_xlabel("Time (t)")
+    ax_err.set_ylabel("Distance (Log Scale)")
+    ax_err.set_title(f"{title} - Error Divergence")
+    ax_err.grid(True, which="both", ls="-", alpha=0.2)
+    ax_err.legend()
+    
+    fig_err.tight_layout()
+    path_err = os.path.join(save_dir, f"{prefix_name}_error_log.png")
+    fig_err.savefig(path_err, dpi=150, bbox_inches="tight")
+    print(f"[plot_results] Error Log Plot saved -> {path_err}")
+    
     if show:
         plt.show()
 
-    return fig3d, fig2d
+    return fig3d, fig2d, fig_err
