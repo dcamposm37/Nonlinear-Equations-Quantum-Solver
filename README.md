@@ -74,3 +74,14 @@ See `docs/error_propagation_analysis.tex` for a full derivation.
 The **Rotation gates** approach explores a unitary-only methodology natively available on 1-qubit hardware. Because pure quantum rotations strictly conserve the geometrical norm $x^2 + y^2 = 1$, they cannot naturally describe the anharmonic potential of a physical pendulum using a single qubit without ancillas. To overcome this limitation:
 1. The **linear** rotations naturally match the circular phase space, conserving amplitude intrinsically.
 2. The **nonlinear** rotations implement a *hybrid quantum-classical algorithm*: the amplitude stretch (non-unitary factor) is tracked purely classically while the intricate geometrical phase angles are mapped directly onto the `Ry` unitary gates.
+
+## Análisis de Divergencia Caótica (Chaotic Divergence Analysis)
+
+The block-encoding quantum solver for the Lorenz system serves as an excellent case study in simulating chaos. By mapping the Euclidean distance $d(t) = \sqrt{(x_{cl}-x_q)^2 + (y_{cl}-y_q)^2 + (z_{cl}-z_q)^2}$ between the classical reference and quantum-reconstructed statevectors on a logarithmic scale, we observe the macroscopic propagation of computational noise. 
+
+![Error vs Time](lorenz/figures/lorenz_be_statevector_error_log.png)
+
+The divergence mathematically encapsulates the deterministic chaos through 3 distinct phases:
+1. **Fidelidad Inicial (Initial Fidelity)**: The algorithmic error rests at the noise floor limit ($\sim 10^{-13}$), validating the extremely high precision of the `sqrtm` block-encoding protocol for the matrix linear transformations.
+2. **Divergencia de Lyapunov (Lyapunov Divergence)**: Starting around $t = 13$, the truncation error and physical floating-point noise compound exponentially. This constant-slope linear ascent in the logarithmic plot is a direct visual proof of the system's dominant positive Lyapunov exponent.
+3. **Saturación (Saturation)**: Approaching $t = 40$, the error divergence reaches a limit around $10^1$. This maximum boundary is imposed purely by the finite geometric topology of the "butterfly" strange attractor.
