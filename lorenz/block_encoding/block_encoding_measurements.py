@@ -48,8 +48,7 @@ BETA = 8.0 / 3.0       # Physical proportion
 X0, Y0, Z0 = 1.0, 1.0, 1.0
 T_FINAL = 10.0
 N_STEPS = int(T_FINAL / DT)
-BASE_SHOTS = 20000     # Default simulated hardware shots
-BOOST_SHOTS = 500000   # Quantum Microscope: enhanced shots for extremely low amplitudes
+SHOTS = 20000     # Default simulated hardware shots
 
 SAVE_DIR = os.path.join(os.path.dirname(__file__), "figures")
 
@@ -84,17 +83,9 @@ def next_step_measured(input_state_scaled: np.ndarray, physical_state: np.ndarra
     # Measure all qubits in the Z basis
     qc.measure_all()
     
-    # --- ADAPTIVE SHOT BOOSTING (The Quantum Microscope) ---
-    current_shots = BASE_SHOTS
+    current_shots = SHOTS
     result = simulator.run(qc, shots=current_shots).result()
     counts = result.get_counts()
-    
-    # Check if any fundamental physical coordinate hit the resolution floor
-    if counts.get('0000', 0) == 0 or counts.get('0001', 0) == 0 or counts.get('0010', 0) == 0:
-        print(f"    [Shot Boost] Step {step:4d} | Amplitud crítica de X, Y o Z detectada. Re-ejecutando con {BOOST_SHOTS} shots...")
-        current_shots = BOOST_SHOTS
-        result = simulator.run(qc, shots=current_shots).result()
-        counts = result.get_counts()
     
     # ------------------------------------------------------------------------
     # THE "ORIGIN TRAP" MITIGATION: QST Resolution Limit (Hard-Thresholding)
@@ -169,7 +160,7 @@ def next_step_measured(input_state_scaled: np.ndarray, physical_state: np.ndarra
 # ---------------------------------------------------------------------------
 def main():
     print(f"Starting Measurement-Based Block-Encoding Lorenz simulation with Similarity Transformation.")
-    print(f"Using DT = {DT}, T_FINAL = {T_FINAL} ({N_STEPS} steps), Base Shots = {BASE_SHOTS}, Boost Shots = {BOOST_SHOTS}")
+    print(f"Using DT = {DT}, T_FINAL = {T_FINAL} ({N_STEPS} steps), Shots = {SHOTS}")
     
     t_values = np.linspace(0, T_FINAL, N_STEPS + 1)
     
