@@ -143,24 +143,13 @@ def next_step_measured(input_state_scaled: np.ndarray, physical_state: np.ndarra
     y_raw_scaled = sign_y_applied * abs_y_scaled
     z_raw_scaled = sign_z_applied * abs_z_scaled
 
-    # ------------------------------------------------------------------------
     # 4. PREDICTOR-CORRECTOR FILTER (Shot Noise Dampening)
-    # ------------------------------------------------------------------------
-    # Proyectamos dónde 'debería' estar el sistema según la inercia clásica
-    # y lo escalamos al espacio S.
-    pred_x_scaled = (x_prev + dx) * S[0, 0]
-    pred_y_scaled = (y_prev + dy) * S[1, 1]
-    pred_z_scaled = (z_prev + dz) * S[2, 2]
+    # ELIMINADO para evitar condicionamiento clásico. El estado natural cuántico evita
+    # el 'Origin Trap' al no diluir probabilidad en variables constantes de relleno.
 
-    # Ganancia del Filtro (K_GAIN):
-    # 1.0 = 100% Cuántico (Puro Shot Noise)
-    # 0.0 = 100% Clásico (Ignora el circuito cuántico)
-    # 0.85 es un balance óptimo NISQ (absorbe picos de ruido sin perder fidelidad cuántica)
-    K_GAIN = 0.7
-
-    x_filtered_scaled = K_GAIN * x_raw_scaled + (1 - K_GAIN) * pred_x_scaled
-    y_filtered_scaled = K_GAIN * y_raw_scaled + (1 - K_GAIN) * pred_y_scaled
-    z_filtered_scaled = K_GAIN * z_raw_scaled + (1 - K_GAIN) * pred_z_scaled
+    x_filtered_scaled = x_raw_scaled
+    y_filtered_scaled = y_raw_scaled
+    z_filtered_scaled = z_raw_scaled
 
     xz_new_scaled = sign_x * sign_z * abs_xz_scaled
     xy_new_scaled = sign_x * sign_y * abs_xy_scaled
@@ -229,7 +218,7 @@ def main():
     simulator = AerSimulator()
 
     # 4. State vector memory (Physical space representation)
-    current_sv = np.array([X0, Y0, Z0, X0 * Z0, X0 * Y0, 1.0, 1.0, 1.0])
+    current_sv = np.array([X0, Y0, Z0, X0 * Z0, X0 * Y0, 0.0, 0.0, 0.0])
     
     history_x = [X0]
     history_y = [Y0]
