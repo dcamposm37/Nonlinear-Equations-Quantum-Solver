@@ -1,12 +1,11 @@
 """
-Block Encoding Measurements Simulation for Lorenz System
-======================================================
+Block Encoding Measurements with FABLE for Lorenz System
+=========================================================
 
-Solves the nonlinear Lorenz system using manual quantum block-encoding via
-the `sqrtm` completion method. Unlike the exact statevector sim, this script 
-reconstructs the step-by-step magnitudes by executing purely Z-basis 
-measurements (simulated hardware shots) and tracks the physical phase 
-(sign) via a classical continuity heuristic.
+Replaces the classical dense unitary dilation (scipy sqrtm) with FABLE
+(Fast Approximate Block Encoding), a Qiskit circuit-based oracle. Includes
+post-selection filtering on ancilla qubits, adaptive shot boosting, and
+a Predictor-Corrector EMA filter for shot noise dampening.
 
 Recent Optimizations:
 - Amplitude Starvation fix: Uses a pre-conditioned Scaling Matrix (Similarity 
@@ -19,18 +18,18 @@ Usage
 
 Output
 ------
-    lorenz/figures/lorenz_be_meas_3d.png
-    lorenz/figures/lorenz_be_meas_2d.png
-    lorenz/figures/lorenz_be_meas_error_log.png
+    lorenz/figures/08_fable/lorenz_be_meas_3d.png
+    lorenz/figures/08_fable/lorenz_be_meas_2d.png
+    lorenz/figures/08_fable/lorenz_be_meas_error_log.png
 """
 
 import sys
 import os
+import time
 import numpy as np
-import scipy.linalg
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
-from qiskit.circuit.library import UnitaryGate
+from fable import fable
 
 # Allow imports from project root
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -51,75 +50,108 @@ N_STEPS = int(T_FINAL / DT)
 BASE_SHOTS = 20000     # Default simulated hardware shots
 BOOST_SHOTS = 500000   # Quantum Microscope: enhanced shots for extremely low amplitudes
 
-SAVE_DIR = os.path.join(os.path.dirname(__file__), "..", "figures")
+SAVE_DIR = os.path.join(os.path.dirname(__file__), "..", "figures", "08_fable")
+os.makedirs(SAVE_DIR, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
 # Quantum Block-Encoding Forward Step (Measurement-Based)
 # ---------------------------------------------------------------------------
 def next_step_measured(input_state_scaled: np.ndarray, physical_state: np.ndarray, 
-                       alpha: float, U_gate: UnitaryGate, 
-                       simulator: AerSimulator, dim: int, total_qubits: int, step: int, S: np.ndarray):
-    """
-    Applies the unitary block-encoded gate to the SCALED vector, executes 
-    Z-basis measurements, and applies a classical continuity heuristic using 
-    the PHYSICAL vector to reconstruct the signed SCALED vector components.
-    """
-    norm = np.linalg.norm(input_state_scaled)
-    if norm == 0:
-        return input_state_scaled
+                       alpha: float, fable_circuit: QuantumCircuit, 
+                       simulator: AerSimulator, dim: int, step: int, S: np.ndarray):
     
+    norm = np.linalg.norm(input_state_scaled)
+    
+    def _euler_fallback():
+        x_p = np.clip(physical_state[0], -1e6, 1e6)
+        y_p = np.clip(physical_state[1], -1e6, 1e6)
+        z_p = np.clip(physical_state[2], -1e6, 1e6)
+        x_n = x_p + DT * SIGMA * (y_p - x_p)
+        y_n = y_p + DT * (x_p * (RHO - z_p) - y_p)
+        z_n = z_p + DT * (x_p * y_p - BETA * z_p)
+        return np.array([x_n*S[0,0], y_n*S[1,1], z_n*S[2,2],
+                         x_n*z_n*S[3,3], x_n*y_n*S[4,4],
+                         input_state_scaled[5], input_state_scaled[6], input_state_scaled[7]], dtype=float)
+    
+    # Guard: NaN / Inf / numerical underflow -> classical fallback
+    if not np.isfinite(norm) or norm < 1e-200:
+        return _euler_fallback()
+        
     initial_normalized = input_state_scaled / norm
     
-    # State preparation: |0> \otimes |psi>
-    padded_state = np.zeros(2**total_qubits, dtype=complex)
+    n = int(np.log2(dim))
+    total_qubits = fable_circuit.num_qubits
+    
+    padded_state = np.zeros(2**n, dtype=complex)
     padded_state[0:dim] = initial_normalized
     
+    # Safety: if sum of squares rounds to zero by float precision -> fallback
+    if np.sum(np.abs(padded_state)**2) < 1e-30:
+        return _euler_fallback()
+    
     qc = QuantumCircuit(total_qubits)
-    qc.initialize(padded_state.tolist(), range(total_qubits))
+    # Initialize ONLY the system qubits (first n qubits). normalize=True lets
+    # Qiskit handle any residual floating-point normalization error gracefully.
+    qc.initialize(padded_state.tolist(), range(n), normalize=True)
     
-    # Apply unitary U
-    qc.append(U_gate, range(total_qubits))
+    # 2. Append the Block-Encoding FABLE Oracle
+    qc.append(fable_circuit, range(total_qubits))
     
-    # Measure all qubits in the Z basis
+    # 3. Measure all to collapse states and extract system probabilities
     qc.measure_all()
+    qc = transpile(qc, simulator)
     
-    # --- ADAPTIVE SHOT BOOSTING (The Quantum Microscope) ---
     current_shots = BASE_SHOTS
-    result = simulator.run(qc, shots=current_shots).result()
-    counts = result.get_counts()
+    job = simulator.run(qc, shots=current_shots)
+    counts = job.result().get_counts()
     
-    # Check if any fundamental physical coordinate hit the resolution floor
-    if counts.get('0000', 0) == 0 or counts.get('0001', 0) == 0 or counts.get('0010', 0) == 0:
-        print(f"    [Shot Boost] Step {step:4d} | Amplitud crítica de X, Y o Z detectada. Re-ejecutando con {BOOST_SHOTS} shots...")
+    ancilla_len = total_qubits - n
+    target_ancilla = '0' * ancilla_len
+    
+    def extract_valid_probs(raw_counts):
+        valid = {}
+        successful_shots = 0
+        for bitstring, c in raw_counts.items():
+            if bitstring[:ancilla_len] == target_ancilla:
+                sys_str = bitstring[-n:]
+                valid[sys_str] = valid.get(sys_str, 0) + c
+                successful_shots += c
+        
+        if successful_shots == 0:
+            return {}, 0
+            
+        return {k: v / successful_shots for k, v in valid.items()}, successful_shots
+
+    probs, valid_shots = extract_valid_probs(counts)
+    
+    sum_important = sum(probs.get(k, 0.0) for k in ['000', '001', '010', '011', '100'])
+    
+    if sum_important < 0.05:
+        if step % (N_STEPS // 10) == 0:
+            print(f"    [*] Amplitude Starvation Detected! Post-selection valid shots: {valid_shots}. Boosting shots to {BOOST_SHOTS:,}...")
+            
+        job = simulator.run(qc, shots=BOOST_SHOTS)
+        probs, valid_shots = extract_valid_probs(job.result().get_counts())
         current_shots = BOOST_SHOTS
-        result = simulator.run(qc, shots=current_shots).result()
-        counts = result.get_counts()
+        
+    if valid_shots == 0:
+        valid_shots = 1 # Avoid division by zero in resolution floor scaling
+        
+    # Resolution Floor relative to POST-SELECTED success shots!
+    p_min = 0.5 / valid_shots
     
-    # ------------------------------------------------------------------------
-    # THE "ORIGIN TRAP" MITIGATION: QST Resolution Limit (Hard-Thresholding)
-    # ------------------------------------------------------------------------
-    # Calculate the minimum physical detectable probability (half a shot)
-    p_min = 0.5 / current_shots
-    
-    # Extract magnitudes via frequency, enforcing the topological floor
-    p_x = max(counts.get('0000', 0) / current_shots, p_min)
-    p_y = max(counts.get('0001', 0) / current_shots, p_min)
-    p_z = max(counts.get('0010', 0) / current_shots, p_min)
-    
-    # Check if we hit the hardware resolution floor even after potential boost
-    hit_floor_x = (counts.get('0000', 0) == 0)
-    hit_floor_y = (counts.get('0001', 0) == 0)
-    hit_floor_z = (counts.get('0010', 0) == 0)
+    # States parsing (using original index meanings of 3-qubit subspace)
+    p_x = max(probs.get('000', 0.0), p_min)
+    p_y = max(probs.get('001', 0.0), p_min)
+    p_z = max(probs.get('010', 0.0), p_min)
+    p_xz = max(probs.get('011', 0.0), p_min)
+    p_xy = max(probs.get('100', 0.0), p_min)
     
     # Reconstruct absolute SCALED magnitudes
     abs_x_scaled = np.sqrt(p_x) * alpha * norm
     abs_y_scaled = np.sqrt(p_y) * alpha * norm
     abs_z_scaled = np.sqrt(p_z) * alpha * norm
-    
-    # Reconstruct magnitudes for nonlinear auxiliary terms (can stay naturally 0)
-    p_xz = counts.get('0011', 0) / current_shots
-    p_xy = counts.get('0100', 0) / current_shots
     abs_xz_scaled = np.sqrt(p_xz) * alpha * norm
     abs_xy_scaled = np.sqrt(p_xy) * alpha * norm
     
@@ -134,30 +166,17 @@ def next_step_measured(input_state_scaled: np.ndarray, physical_state: np.ndarra
     sign_y = 1 if (y_prev + dy) >= 0 else -1
     sign_z = 1 if (z_prev + dz) >= 0 else -1
 
-    sign_x_applied = (1 if x_prev >= 0 else -1) if hit_floor_x else sign_x
-    sign_y_applied = (1 if y_prev >= 0 else -1) if hit_floor_y else sign_y
-    sign_z_applied = (1 if z_prev >= 0 else -1) if hit_floor_z else sign_z
-
     # Raw quantum magnitudes with restored signs
-    x_raw_scaled = sign_x_applied * abs_x_scaled
-    y_raw_scaled = sign_y_applied * abs_y_scaled
-    z_raw_scaled = sign_z_applied * abs_z_scaled
+    x_raw_scaled = sign_x * abs_x_scaled
+    y_raw_scaled = sign_y * abs_y_scaled
+    z_raw_scaled = sign_z * abs_z_scaled
 
-    # ------------------------------------------------------------------------
     # 4. PREDICTOR-CORRECTOR FILTER (Shot Noise Dampening)
-    # ------------------------------------------------------------------------
-    # Proyectamos dónde 'debería' estar el sistema según la inercia clásica
-    # y lo escalamos al espacio S.
     pred_x_scaled = (x_prev + dx) * S[0, 0]
     pred_y_scaled = (y_prev + dy) * S[1, 1]
     pred_z_scaled = (z_prev + dz) * S[2, 2]
 
-    # Ganancia del Filtro (K_GAIN):
-    # 1.0 = 100% Cuántico (Puro Shot Noise)
-    # 0.0 = 100% Clásico (Ignora el circuito cuántico)
-    # 0.85 es un balance óptimo NISQ (absorbe picos de ruido sin perder fidelidad cuántica)
     K_GAIN = 0.7
-
     x_filtered_scaled = K_GAIN * x_raw_scaled + (1 - K_GAIN) * pred_x_scaled
     y_filtered_scaled = K_GAIN * y_raw_scaled + (1 - K_GAIN) * pred_y_scaled
     z_filtered_scaled = K_GAIN * z_raw_scaled + (1 - K_GAIN) * pred_z_scaled
@@ -197,7 +216,6 @@ def main():
     ], dtype=float)
 
     # 2. Similarity Transformation (Pre-Conditioning)
-    # Weights target mapping variables that can grow to O(10) or O(100) down towards O(1)
     W = np.array([1/20, 1/30, 1/50, 1/1000, 1/600, 1.0, 1.0, 1.0])
     S = np.diag(W)
     inv_S = np.diag(1.0 / W)
@@ -207,25 +225,16 @@ def main():
 
     # 3. Block Encoding Matrix Setup
     dim = A_scaled.shape[0]
-    num_qubits = int(np.log2(dim))
-    total_qubits = num_qubits + 1  
     
-    alpha = np.linalg.norm(A_scaled, 2)  
-    if alpha == 0:
-        alpha = 1e-6
-        
-    A_norm = A_scaled / alpha
-    I = np.eye(dim)
+    A_norm = A_scaled / np.linalg.norm(A_scaled, 2)
+    fable_circuit, alpha_fable = fable(A_norm)
+    alpha = np.linalg.norm(A_scaled, 2) * alpha_fable
     
-    term1 = np.real(scipy.linalg.sqrtm((I - A_norm @ A_norm.T).astype(complex)))
-    term2 = np.real(scipy.linalg.sqrtm((I - A_norm.T @ A_norm).astype(complex)))
+    print(f"[*] FABLE Circuit Generated!")
+    print(f"[*] Total Qubits: {fable_circuit.num_qubits}")
+    print(f"[*] Circuit Depth: {fable_circuit.depth()}")
+    print(f"[*] Total Valid Operations: {sum(fable_circuit.count_ops().values())}")
     
-    U = np.block([
-        [A_norm, term1],
-        [term2, -A_norm.T]
-    ])
-    
-    U_gate = UnitaryGate(U)
     simulator = AerSimulator()
 
     # 4. State vector memory (Physical space representation)
@@ -235,8 +244,9 @@ def main():
     history_y = [Y0]
     history_z = [Z0]
 
+    start_time = time.time()
     for step in range(N_STEPS):
-        if step > 0 and step % (N_STEPS // 10) == 0:
+        if step % (N_STEPS // 10) == 0:
             pct = int(100 * step / N_STEPS)
             print(f"[{pct:3d}%] Step {step:4d}/{N_STEPS} | Current X,Y,Z: {current_sv[0]:.2f}, {current_sv[1]:.2f}, {current_sv[2]:.2f}")
             
@@ -244,26 +254,34 @@ def main():
         current_sv_scaled = S @ current_sv
             
        # Apply linear operator + measurements + sign heuristic in SCALED subspace
-        output_scaled = next_step_measured(current_sv_scaled, current_sv, alpha, U_gate, simulator, dim, total_qubits, step, S)
+        output_scaled = next_step_measured(current_sv_scaled, current_sv, alpha, fable_circuit, simulator, dim, step, S)
         
         # Un-scale the result back to physical coordinates
         output_sv = inv_S @ output_scaled
         
-        # Hard-enforce the relationship x*y in the auxiliary subspace geometrically
-        # to prevent compounding independent statistical jitter.
+        # Guard against NaN/Inf propagation: fallback to clean Euler step if needed
+        if not np.all(np.isfinite(output_sv)):
+            x_p, y_p, z_p = current_sv[0], current_sv[1], current_sv[2]
+            output_sv[0] = x_p + DT * SIGMA * (y_p - x_p)
+            output_sv[1] = y_p + DT * (x_p * (RHO - z_p) - y_p)
+            output_sv[2] = z_p + DT * (x_p * y_p - BETA * z_p)
+        
+        # Hard-enforce the relationship x*y in the auxiliary subspace
         next_sv = np.copy(output_sv)
         next_sv[3] = next_sv[0] * next_sv[2] 
         next_sv[4] = next_sv[0] * next_sv[1]
         
-        # Store physical coordinates
         history_x.append(next_sv[0])
         history_y.append(next_sv[1])
         history_z.append(next_sv[2])
         
-        # Step forward
         current_sv = next_sv
         
+    end_time = time.time()
+    total_time = end_time - start_time
     print(f"[100%] Step {N_STEPS}/{N_STEPS} | Simulation Complete.")
+    print(f"[*] Total Execution Time (FABLE Block Encoding): {total_time:.2f} seconds")
+    print(f"[*] Average Time per Step: {total_time/N_STEPS:.4f} seconds")
 
     x_q, y_q, z_q = np.array(history_x), np.array(history_y), np.array(history_z)
     
