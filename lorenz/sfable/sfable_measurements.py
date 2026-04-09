@@ -39,7 +39,7 @@ BETA = 8.0 / 3.0
 X0, Y0, Z0 = 1.0, 1.0, 1.0
 T_FINAL = 10.0
 N_STEPS = int(T_FINAL / DT)
-SHOTS = 1000     # Default simulated hardware shots
+SHOTS = 20000     # Default simulated hardware shots
 FABLE_CUTOFF = 1e-4    # Sparse FABLE threshold cutoff
 
 SAVE_DIR = os.path.join(os.path.dirname(__file__), "figures")

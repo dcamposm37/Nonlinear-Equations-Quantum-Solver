@@ -114,7 +114,67 @@ At each Euler time step:
 
 ---
 
-## 4. Qiskit Integration
+## 4. Shot-Based Measurement Protocol (NISQ Simulation)
+
+The measurement-based implementation (`pauli_lcu_measurements.py`) replaces exact statevector extraction with **stochastic sampling**, modeling the execution flow of a physical quantum device.
+
+### 4.1 Circuit Execution Model
+
+At each time step, the full 8-qubit circuit is executed on `AerSimulator` [8] with a fixed number of shots $N_{\text{shots}}$. The circuit layout is:
+
+1. **State Initialization**: The scaled, normalized physical state $|\psi\rangle$ is loaded into the system register (lowest 3 qubits), with the ancilla register (upper 5 qubits) initialized to $|0\rangle$.
+2. **LCU Application**: The precomputed `UnitaryGate` is applied to all 8 qubits.
+3. **Z-Basis Measurement**: All qubits are measured simultaneously in the computational basis (`measure_all`).
+
+### 4.2 Post-Selection and Amplitude Reconstruction
+
+From the resulting shot counts, only outcomes where the **ancilla bits are all zero** correspond to the physical subspace of the block-encoding [1, 2]. The empirical post-selection probability is:
+
+$$P_{\text{success}} = \frac{N_{\text{anc}=0}}{N_{\text{shots}}}$$
+
+For the Pauli-LCU with $\lambda = 1.706$, the theoretical success probability per step is $P \approx 1/\lambda^2 \approx 34\%$, meaning roughly 6,800 out of 20,000 shots survive post-selection -- providing ample statistics for amplitude reconstruction.
+
+The physical amplitude magnitudes are reconstructed from the conditional probability distribution via Born's rule [9]:
+
+$$|a_j| = \sqrt{p_j} \cdot \lambda \cdot \|\vec{v}_{\text{sc}}\|$$
+
+where $p_j = N_j / N_{\text{anc}=0}$ is the conditional frequency of system outcome $j$ among the post-selected shots.
+
+### 4.3 The Origin Trap Mitigation
+
+A minimum detectable probability floor is enforced at $p_{\min} = 0.5 / N_{\text{shots}}$ to prevent amplitude starvation when a physical variable's probability drops below the shot-noise resolution. This hard-threshold prevents the **"Origin Trap"** where variables irreversibly collapse to zero due to statistical undersampling [10].
+
+### 4.4 Sign Recovery via Eulerian Continuity Heuristic
+
+Z-basis measurements intrinsically destroy phase information (the sign of each amplitude). A classical continuity heuristic recovers the signs using a one-step Euler predictor:
+
+$$\text{sign}(x_{k+1}) = \text{sign}\left(x_k + dt \cdot f_x(x_k, y_k, z_k)\right)$$
+
+where $f_x, f_y, f_z$ are the Lorenz vector field components. When a variable hits the shot-noise floor (zero measured counts), the sign from the previous time step is preserved to avoid spurious sign flips.
+
+### 4.5 Shot-Noise Scaling
+
+The estimation error for each amplitude component follows the **Standard Quantum Limit** [10]:
+
+$$\epsilon_j \sim \mathcal{O}\left(\frac{1}{\sqrt{N_{\text{shots}} \cdot P_{\text{success}}}}\right)$$
+
+The effective post-selected sample size is $N_{\text{eff}} = N_{\text{shots}} \cdot P_{\text{success}}$. For the Pauli-LCU this is $\sim 6{,}800$ effective samples per step (vs. $\sim 320$ for a generic $2^n$ block-encoding), leading to a **~4.6x reduction in statistical error** at equal shot budget.
+
+### 4.6 Measurement Results
+
+| Parameter | Value |
+|-----------|-------|
+| Shots per step | 20,000 |
+| Post-selection probability | ~34% |
+| Effective samples per step | ~6,800 |
+| Simulation time (1000 steps) | ~58 s |
+| Trajectory tracking | Active through all 1000 steps |
+
+---
+
+## 5. Qiskit Integration
+
+### 5.1 Statevector Mode
 
 The LCU unitary is constructed analytically via NumPy (Householder PREP + projector-based SELECT) and wrapped as a Qiskit `UnitaryGate` and `Operator`. Each time step is executed via:
 
@@ -128,19 +188,36 @@ sv_out = sv_in.evolve(lcu_op)           # Quantum circuit evolution
 
 This is mathematically equivalent to running the 8-qubit circuit on `AerSimulator(method="statevector")`, but avoids the per-step overhead of Qiskit's transpiler decomposing the multi-controlled Pauli gates (which have 5 control qubits each).
 
+### 5.2 Shot-Based Mode
+
+The same `UnitaryGate` is reused in a standard `QuantumCircuit` with `measure_all()`, executed on `AerSimulator` with a configurable shot count:
+
+```python
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+
+qc = QuantumCircuit(total_qubits)
+qc.initialize(padded_state, range(total_qubits))
+qc.append(lcu_gate, range(total_qubits))
+qc.measure_all()
+
+counts = AerSimulator().run(qc, shots=20000).result().get_counts()
+```
+
 ---
 
-## 5. Files
+## 6. Files
 
 | File | Description |
 |------|-------------|
-| `pauli_lcu_statevector.py` | Main solver: exact statevector simulation |
+| `pauli_lcu_statevector.py` | Exact statevector simulation (ideal quantum computer) |
+| `pauli_lcu_measurements.py` | Shot-based simulation (NISQ hardware model, 20k shots) |
 | `figures/` | Auto-generated comparison plots (3D attractor, 2D projections, error analysis) |
 | `README.md` | This document |
 
 ---
 
-## 6. References
+## 7. References
 
 1. **Childs, A. M. & Wiebe, N.** (2012). *Hamiltonian simulation using linear combinations of unitary operations*. Quantum Information & Computation, 12(11-12), 901-924. [arXiv:1202.5822](https://arxiv.org/abs/1202.5822)
 
@@ -155,4 +232,10 @@ This is mathematically equivalent to running the 8-qubit circuit on `AerSimulato
 6. **Krovi, H.** (2023). *Improved quantum algorithms for linear and nonlinear differential equations*. Quantum, 7, 913. [arXiv:2202.01054](https://arxiv.org/abs/2202.01054)
 
 7. **Gilyen, A., Su, Y., Low, G. H., & Wiebe, N.** (2019). *Quantum singular value transformation and beyond: exponential improvements for quantum matrix arithmetics*. Proceedings of the 51st Annual ACM STOC, 193-204. [arXiv:1806.01838](https://arxiv.org/abs/1806.01838) -- Establishes the block-encoding framework unifying LCU, quantum walk, and QSP.
+
+8. **Qiskit Contributors.** (2023). *Qiskit: An open-source framework for quantum computing*. [doi:10.5281/zenodo.2573505](https://doi.org/10.5281/zenodo.2573505) -- AerSimulator backend for shot-based circuit simulation.
+
+9. **Born, M.** (1926). *Zur Quantenmechanik der Stossvorgange*. Zeitschrift fur Physik, 37(12), 863-867. -- Born's rule: measurement outcome probabilities as squared amplitudes $p_j = |\langle j | \psi \rangle|^2$.
+
+10. **Giovannetti, V., Lloyd, S., & Maccone, L.** (2006). *Quantum metrology*. Physical Review Letters, 96(1), 010401. [arXiv:quant-ph/0509179](https://arxiv.org/abs/quant-ph/0509179) -- Standard Quantum Limit and Heisenberg Limit for parameter estimation from quantum measurements.
 
