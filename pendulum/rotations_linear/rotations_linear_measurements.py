@@ -8,11 +8,11 @@ Quantum State Tomography (Z and X basis measurements).
 
 Usage
 -----
-    python -m pendulum.rotations.linear_measurements
+    python -m pendulum.rotations_linear.rotations_linear_measurements
 
 Output
 ------
-    pendulum/figures/rotation_linear_meas.png
+    pendulum/rotations_linear/figures/rotation_linear_meas.png
 """
 
 import sys
@@ -37,7 +37,7 @@ N_STEPS = 2**(N_QUBITS - 1)
 SHOTS = 25_000
 
 FIGURE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "figures", "rotation_linear_meas.png"
+    os.path.dirname(__file__), "figures", "rotation_linear_meas.png"
 )
 
 # ---------------------------------------------------------------------------

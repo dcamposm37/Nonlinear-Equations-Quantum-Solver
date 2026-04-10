@@ -12,11 +12,11 @@ Integrates the nonlinear pendulum using a hybrid approach:
 
 Usage
 -----
-    python -m pendulum.rotations.nonlinear_statevector
+    python -m pendulum.rotations_nonlinear.rotations_nonlinear_statevector
 
 Output
 ------
-    pendulum/figures/rotation_nonlinear_sv.png
+    pendulum/rotations_nonlinear/figures/rotation_nonlinear_sv.png
 """
 
 import sys
@@ -39,7 +39,7 @@ Y0 = 0.0
 N_STEPS = 1000
 
 FIGURE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "figures", "rotation_nonlinear_sv.png"
+    os.path.dirname(__file__), "figures", "rotation_nonlinear_sv.png"
 )
 
 # ---------------------------------------------------------------------------

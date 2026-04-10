@@ -14,11 +14,11 @@ See docs/error_propagation_analysis.tex for details.
 
 Usage
 -----
-    python -m pendulum.solvers.lcu_linear_measurements
+    python -m pendulum.pauli_lcu_linear.pauli_lcu_linear_measurements
 
 Output
 ------
-    pendulum/figures/lcu_linear_meas.png
+    pendulum/pauli_lcu_linear/figures/lcu_linear_meas.png
 """
 
 import sys
@@ -44,7 +44,7 @@ N_STEPS = 1000
 SHOTS = 25_000
 
 FIGURE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "figures", "lcu_linear_meas.png"
+    os.path.dirname(__file__), "figures", "lcu_linear_meas.png"
 )
 
 

@@ -26,11 +26,11 @@ See docs/error_propagation_analysis.tex for the full analysis.
 
 Usage
 -----
-    python -m pendulum.solvers.lcu_nonlinear_measurements
+    python -m pendulum.pauli_lcu_nonlinear.pauli_lcu_nonlinear_measurements
 
 Output
 ------
-    pendulum/figures/lcu_nonlinear_meas.png
+    pendulum/pauli_lcu_nonlinear/figures/lcu_nonlinear_meas.png
 """
 
 import sys
@@ -55,7 +55,7 @@ N_STEPS = 1000
 SHOTS = 25_000
 
 FIGURE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "figures", "lcu_nonlinear_meas.png"
+    os.path.dirname(__file__), "figures", "lcu_nonlinear_meas.png"
 )
 
 

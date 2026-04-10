@@ -7,11 +7,11 @@ to a 1-qubit circuit, with exact statevector simulation.
 
 Usage
 -----
-    python -m pendulum.rotations.linear_statevector
+    python -m pendulum.rotations_linear.rotations_linear_statevector
 
 Output
 ------
-    pendulum/figures/rotation_linear_sv.png
+    pendulum/rotations_linear/figures/rotation_linear_sv.png
 """
 
 import os
@@ -35,7 +35,7 @@ N_QUBITS = 12
 N_STEPS = 2**(N_QUBITS - 1)
 
 FIGURE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "figures", "rotation_linear_sv.png"
+    os.path.dirname(__file__), "figures", "rotation_linear_sv.png"
 )
 
 

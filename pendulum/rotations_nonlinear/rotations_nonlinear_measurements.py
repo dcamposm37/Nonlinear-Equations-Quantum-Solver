@@ -14,11 +14,11 @@ Integrates the nonlinear pendulum using a hybrid approach:
 
 Usage
 -----
-    python -m pendulum.rotations.nonlinear_measurements
+    python -m pendulum.rotations_nonlinear.rotations_nonlinear_measurements
 
 Output
 ------
-    pendulum/figures/rotation_nonlinear_meas.png
+    pendulum/rotations_nonlinear/figures/rotation_nonlinear_meas.png
 """
 
 import sys
@@ -44,7 +44,7 @@ N_STEPS = 1000
 SHOTS = 25_000
 
 FIGURE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "figures", "rotation_nonlinear_meas.png"
+    os.path.dirname(__file__), "figures", "rotation_nonlinear_meas.png"
 )
 
 

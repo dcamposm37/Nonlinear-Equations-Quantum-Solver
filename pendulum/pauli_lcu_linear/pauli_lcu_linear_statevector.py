@@ -16,11 +16,11 @@ trajectory matches the classical Euler discretisation perfectly.
 
 Usage
 -----
-    python -m pendulum.solvers.lcu_linear_statevector
+    python -m pendulum.pauli_lcu_linear.pauli_lcu_linear_statevector
 
 Output
 ------
-    pendulum/figures/lcu_linear_sv.png
+    pendulum/pauli_lcu_linear/figures/lcu_linear_sv.png
 """
 
 import sys
@@ -45,7 +45,7 @@ Y0 = 1.0
 N_STEPS = 5000
 
 FIGURE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "figures", "lcu_linear_sv.png"
+    os.path.dirname(__file__), "figures", "lcu_linear_sv.png"
 )
 
 

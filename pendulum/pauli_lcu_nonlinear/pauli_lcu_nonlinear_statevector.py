@@ -25,11 +25,11 @@ trajectory perfectly.
 
 Usage
 -----
-    python -m pendulum.solvers.lcu_nonlinear_statevector
+    python -m pendulum.pauli_lcu_nonlinear.pauli_lcu_nonlinear_statevector
 
 Output
 ------
-    pendulum/figures/lcu_nonlinear_sv.png
+    pendulum/pauli_lcu_nonlinear/figures/lcu_nonlinear_sv.png
 """
 
 import sys
@@ -54,7 +54,7 @@ Y0 = 0.0               # Initial velocity
 N_STEPS = 1000
 
 FIGURE_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "figures", "lcu_nonlinear_sv.png"
+    os.path.dirname(__file__), "figures", "lcu_nonlinear_sv.png"
 )
 
 
