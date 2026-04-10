@@ -27,6 +27,11 @@ where $\Delta \theta = - \omega \Delta t$.
 ## 3. Usage
 
 ```bash
-python -m pendulum.rotations_linear.rotations_linear_statevector
 python -m pendulum.rotations_linear.rotations_linear_measurements
 ```
+
+## 4. References
+
+1. **Nielsen, M. A. & Chuang, I. L.** (2010). *Quantum Computation and Quantum Information*. Cambridge University Press. (Ch. 4: Basic unitary gates and circuit construction).
+2. **Born, M.** (1926). *Zur Quantenmechanik der Stossvorgange*. Zeitschrift fur Physik, 37(12), 863-867. (Foundation for amplitude reconstruction from shot statistics).
+3. **Qiskit Contributors.** (2023). *Qiskit: An open-source framework for quantum computing*. [doi:10.5281/zenodo.2573505](https://doi.org/10.5281/zenodo.2573505)

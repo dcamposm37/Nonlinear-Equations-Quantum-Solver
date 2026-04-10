@@ -39,6 +39,11 @@ The circuit uses 2 ancilla qubits to prepare the superposition of these operator
 # Run exact simulation
 python -m pendulum.pauli_lcu_linear.pauli_lcu_linear_statevector
 
-# Run shot-based simulation
 python -m pendulum.pauli_lcu_linear.pauli_lcu_linear_measurements
 ```
+
+## 4. References
+
+1. **Childs, A. M. & Wiebe, N.** (2012). *Hamiltonian simulation using linear combinations of unitary operations*. Quantum Information & Computation, 12(11-12), 901-924. [arXiv:1202.5822](https://arxiv.org/abs/1202.5822)
+2. **Berry, D. W., Childs, A. M., Cleve, R., Kothari, R., & Somma, R. D.** (2015). *Simulating Hamiltonian dynamics with a truncated Taylor series*. Physical Review Letters, 114(9), 090502. [arXiv:1412.4687](https://arxiv.org/abs/1412.4687)
+3. **Nielsen, M. A. & Chuang, I. L.** (2010). *Quantum Computation and Quantum Information*. Cambridge University Press.

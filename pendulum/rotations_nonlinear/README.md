@@ -27,6 +27,11 @@ This allows simulating complex nonlinear oscillations on a single qubit without 
 ## 4. Usage
 
 ```bash
-python -m pendulum.rotations_nonlinear.rotations_nonlinear_statevector
 python -m pendulum.rotations_nonlinear.rotations_nonlinear_measurements
 ```
+
+## 5. References
+
+1. **Nielsen, M. A. & Chuang, I. L.** (2010). *Quantum Computation and Quantum Information*. Cambridge University Press. (Ch. 4: Basic unitary gates and circuit construction).
+2. **Liu, J.-P., Kolden, H. O., Krovi, H. K., Loureiro, N. F., Trivisa, K., & Childs, A. M.** (2021). *Efficient quantum algorithm for dissipative nonlinear differential equations*. Proceedings of the National Academy of Sciences, 118(35). [arXiv:2011.03185](https://arxiv.org/abs/2011.03185) (Theoretical motivation for nonlinear ODE solvers on quantum hardware).
+3. **Giovannetti, V., Lloyd, S., & Maccone, L.** (2011). *Advances in quantum metrology*. Nature Photonics, 5(4), 222-229. (Context for hybrid quantum-classical state estimation).

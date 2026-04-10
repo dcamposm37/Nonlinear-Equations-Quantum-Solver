@@ -1,64 +1,218 @@
-# Quantum Solvers for the Lorenz System: NISQ vs. Fault-Tolerant Approaches
+# Lorenz System Quantum Solvers
 
-This directory contains two distinct quantum block-encoding solvers for the nonlinear Lorenz system. Both approaches transform the nonlinear differential equations into an augmented linear system via Carleman linearization and embed the resulting evolution matrix into a larger unitary operator via block encoding. However, they drastically differ in how they extract information from the final quantum state.
-
-## 1. The Block Encoding Framework (Common Ground)
-
-Both solvers follow the same algorithmic backbone for time-evolution:
-
-1. **Carleman Linearization**: The nonlinear Lorenz equations are strictly mapped to a larger, closed linear subset by introducing auxiliary variables corresponding to the nonlinear terms (e.g., $xy$, $xz$).
-2. **Euler Discretization**: A discrete-time transition matrix $A$ is constructed such that $\vec{v}(t+dt) \approx A \vec{v}(t)$.
-3. **Similarity Transformation**: A diagonal scaling matrix $S$ is applied to safely bound amplitudes and prevent premature amplitude starvation in the quantum register: $A_{scaled} = S A S^{-1}$.
-4. **Block Encoding**: Because the transition matrix $A_{scaled}$ is strictly non-unitary, it is embedded into a higher-dimensional unitary matrix $U$ (the "Oracle") using matrix square roots:
-   $$ U = \begin{pmatrix} A_{scaled}/\alpha & \cdot \\ \cdot & \cdot \end{pmatrix} $$
-   where $\alpha$ is a normalization factor ($\alpha \geq ||A_{scaled}||_2$).
+Quantum algorithms for solving the chaotic Lorenz system using block-encoding and LCU techniques.
 
 ---
 
-## 2. Measurement-Based Approach (NISQ Era)
-**File:** `solvers/block_encoding_measurements.py`
+## Physical System
 
-This approach relies on **stochastic sampling (hardware shots)**, modeling the execution flow of Noisy Intermediate-Scale Quantum (NISQ) devices.
+The Lorenz system is a set of three coupled nonlinear ODEs:
 
-*   **Amplitude Extraction**: The circuit is executed thousands of times, and all measurement operations are performed in the computational (Z) basis. The absolute magnitudes of the state variables ($x, y, z$) are reconstructed from the observed probability distributions.
-*   **The Shot Noise Problem**: The estimator follows the standard quantum limit, meaning the estimation error scales as $\mathcal{O}(1/\sqrt{N_{shots}})$. To reduce the error by one order of magnitude, the required number of measurements increases quadratically.
-*   **Noise Mitigation**: Given the high sensitivity to initial conditions inherent in chaotic systems like the Lorenz attractor, stochastic peaks in the sampling noise can easily destabilize the trajectory. This solver mitigates the problem using a **Predictor-Corrector Filter** to dampen statistical jitter and an **Adaptive Quantum Microscope** that dynamically boosts shot counts when amplitudes critically approach the finite hardware resolution floor.
-*   **The Phase Reversal Protocol**: Z-basis measurements intrinsically destroy complex phase information (thereby losing mathematical signs). A classical continuity heuristic uses a local predictor to estimate the expected directional flow of the physical system, subsequently restoring the corresponding signs to the unsigned quantum magnitudes.
+$$\frac{dx}{dt} = \sigma (y - x)$$
 
----
+$$\frac{dy}{dt} = x(\rho - z) - y$$
 
-## 3. Iterative Quantum Amplitude Estimation (Fault-Tolerant Era)
-**File:** `solvers/block_encoding_iqae.py`
+$$\frac{dz}{dt} = xy - \beta z$$
 
-This proof-of-concept (PoC) model anticipates the Fault-Tolerant Era, fundamentally replacing naive stochastic sampling with **Iterative Quantum Amplitude Estimation (IQAE)**.
+**Standard chaotic parameters**: $\sigma = 10$, $\rho = 28$, $\beta = 8/3$     
 
-### The Oracle and The Grover Operator
-Let $\mathcal{A}$ be the composite operator performing the initial state preparation and applying the block-encoded unitary $U$. The fundamental goal is to precisely estimate the amplitude $a$ of a specified "target" subspace $|\Psi_1\rangle$:
-
-$$ \mathcal{A}|0\rangle_{n+1} = \sqrt{a}|\Psi_1\rangle + \sqrt{1-a}|\Psi_0\rangle $$
-
-where $a = \sin^2(\theta)$ for some intrinsic angle $\theta \in [0, \pi/2]$.
-
-IQAE evaluates this via the Grover operator $Q$, defined mathematically as:
-
-$$ Q = -\mathcal{A}\mathcal{S}_0\mathcal{A}^\dagger \mathcal{S}_\chi $$
-
-where $\mathcal{S}_0$ is the reflection about the zero state and $\mathcal{S}_\chi$ is the reflection about the target state $|\Psi_1\rangle$. Iteratively applying $Q$ induces a deterministic rotation of the quantum state vector by an angle of exactly $2\theta$ per iteration step:
-
-$$ Q^k \mathcal{A} |0\rangle = \sin((2k+1)\theta) |\Psi_1\rangle + \cos((2k+1)\theta) |\Psi_0\rangle $$
-
-### Why IQAE is Superior: Reaching the Heisenberg Limit
-*   **Algorithm Efficiency**: Standard Amplitude Estimation relies on Quantum Phase Estimation (QPE), demanding impractically deep circuits and many auxiliary qubits. Iterative QAE (IQAE) adaptively applies $Q^{k_i}$ for changing values of $k_i$ and employs classical statistical inference to tighten the confidence limits around $\theta$—eliminating the need for QPE entirely.
-*   **Scaling Advantage**: The defining advantage of IQAE lies in shifting the fundamental error bound from the Standard Quantum Limit to the **Heisenberg Limit**. The error $\epsilon$ scales tightly as:
-    $$ \epsilon \sim \mathcal{O}\left(\frac{1}{N_{queries}}\right) $$
-    where $N_{queries}$ is the absolute number of oracle calls. Under this regime, reducing the error bound by a factor of 10 incurs only a $10\times$ linear increase in oracle calls, bypassing the heavy $\mathcal{O}(1/\epsilon^2)$ computational penalty of direct NISQ sampling.
-
-### Implementation Details in the PoC
-To circumvent the current computational impossibility of classically simulating deep IQAE circuits, `block_encoding_iqae.py` implements a hybrid simulation logic. It uses `qiskit.quantum_info.Statevector` to directly pull the exact algebraic amplitudes ("ideal fault-tolerant limit"). Simultaneously, it analytically estimates the strict theoretical oracle query cost: $N_{oracle} \approx \frac{\pi}{4 \epsilon_{target}}$. This computes the hardware cost a future fault-tolerant device would pay to sustain a $1\%$ relative error bound tracking the chaotic trajectory.
+This system exhibits deterministic chaos with sensitive dependence on initial conditions (positive Lyapunov exponent).
 
 ---
 
-## References
-1. Brassard, G., Hoyer, P., Mosca, M., & Tapp, A. (2002). Quantum Amplitude Amplification and Estimation. *Contemporary Mathematics*, 305, 53-74. [arXiv:quant-ph/0005055](https://arxiv.org/abs/quant-ph/0005055)
-2. Grinko, A., Gacon, J., Zoufal, C., & Woerner, S. (2019). Iterative Quantum Amplitude Estimation. *npj Quantum Information*, 5(1), 1-6. [https://doi.org/10.1038/s41534-019-0230-z](https://doi.org/10.1038/s41534-019-0230-z)
-3. Liu, J. P., Kothari, R., Novo, L., & Berry, D. W. (2021). Toward prospectively useful quantum algorithms for nonlinear differential equations. *PRX Quantum*, 2(4), 040321. [https://doi.org/10.1103/PRXQuantum.2.040321](https://doi.org/10.1103/PRXQuantum.2.040321)
+## Classical Reference
+
+### Forward Euler Discretization
+
+Implemented in `classical.py`:
+
+```python
+def euler_lorenz(dt, sigma, rho, beta, x0, y0, z0, n_steps):
+    """
+    Explicit Euler update:
+        x_{n+1} = x_n + dt·σ(y_n - x_n)
+        y_{n+1} = y_n + dt·[x_n(ρ - z_n) - y_n]
+        z_{n+1} = z_n + dt·(x_n·y_n - β·z_n)
+    """
+```
+
+This is the exact discretization that all quantum solvers implement for fair comparison.
+
+---
+
+## Common Quantum Initialization
+
+### State Vector Structure
+
+The Lorenz system requires tracking both the physical variables and their nonlinear products:
+
+$$\mathbf{v} = \begin{pmatrix} x \\ y \\ z \\ xz \\ xy \\ 1 \\ 1 \\ 1 \end{pmatrix}$$ 
+
+- Elements 0-2: Physical coordinates $(x, y, z)$
+- Element 3: Nonlinear product $xz$ (used in $\dot{y}$ equation)
+- Element 4: Nonlinear product $xy$ (used in $\dot{z}$ equation)
+- Elements 5-7: Padding constants for 8-dimensional space
+
+### Euler Step Matrix
+
+The linear part of the Euler update can be written as:
+
+$$\mathbf{v}_{n+1} = A \cdot \mathbf{v}_n$$
+
+```python
+A = np.array([
+    [1 - dt*sigma,  dt*sigma,    0,        0,    0,  0, 0, 0],   # x_{n+1}
+    [dt*rho,        1 - dt,      0,       -dt,   0,  0, 0, 0],   # y_{n+1} (uses xz)  
+    [0,             0,           1 - dt*beta, 0,  dt,  0, 0, 0], # z_{n+1} (uses xy)  
+    [0,             0,           0,        1,    0,  0, 0, 0],   # Dummy
+    [0,             0,           0,        0,    1,  0, 0, 0],   # Dummy
+    [0,             0,           0,        0,    0,  1, 0, 0],   # Identity
+    [0,             0,           0,        0,    0,  0, 1, 0],   # Identity
+    [0,             0,           0,        0,    0,  0, 0, 1]    # Identity
+])
+```
+
+### Nonlinear Update (Classical)
+
+After each quantum linear step, the nonlinear products are updated classically:
+
+```python
+next_sv[3] = next_sv[0] * next_sv[2]  # xz = x · z
+next_sv[4] = next_sv[0] * next_sv[1]  # xy = x · y
+```
+
+This hybrid approach separates:
+- **Linear dynamics**: Quantum block-encoded matrix multiplication
+- **Nonlinear terms**: Classical memory update
+
+---
+
+## Block Encoding Structure
+
+All solvers use a common block-encoding pattern:
+
+### Matrix Embedding
+
+Given matrix $A$ with spectral norm $\alpha = \|A\|_2$, construct unitary $U$:   
+
+$$U = \begin{pmatrix} A/\alpha & \sqrt{I - AA^\dagger}/\alpha \\ \sqrt{I - A^\dagger A}/\alpha & -A^\dagger/\alpha \end{pmatrix}$$
+
+### Quantum Circuit
+
+```text
+|0_anc⟩ ─────── U_block ─────── measure ⟨0|
+|ψ_sys⟩ ─────── U_block ─────── output
+|ψ_sys⟩ ─────── U_block ─────── output
+|ψ_sys⟩ ─────── U_block ─────── output
+... (n qubits total)
+```
+
+Post-selecting ancilla $= |0\rangle$ yields $A|\psi\rangle / \alpha$.
+
+### Implementation
+
+```python
+alpha = np.linalg.norm(A, 2)  # Spectral norm
+A_norm = A / alpha
+
+I = np.eye(dim)
+term1 = scipy.linalg.sqrtm(I - A_norm @ A_norm.T)
+term2 = scipy.linalg.sqrtm(I - A_norm.T @ A_norm)
+
+U = np.block([
+    [A_norm,  term1],
+    [term2,  -A_norm.T]
+])
+```
+
+---
+
+## Similarity Scaling
+
+To improve numerical stability, a similarity transformation is applied:        
+
+```python
+W = np.array([1/20, 1/30, 1/50, 1/1000, 1/600, 1.0, 1.0, 1.0])
+S = np.diag(W)          # Scaling matrix
+inv_S = np.diag(1.0 / W) # Inverse scaling
+
+A_scaled = S @ A @ inv_S  # Scaled matrix (better conditioned)
+```
+
+This reduces the spectral norm without changing the physics.
+
+---
+
+## Standard Parameters
+
+- **DT = 0.01**           # Time step
+- **SIGMA = 10.0**        # Prandtl number
+- **RHO = 28.0**          # Rayleigh number
+- **BETA = 8.0 / 3.0**    # Geometric factor
+- **X0, Y0, Z0 = 1.0, 1.0, 1.0**    # Initial conditions
+- **T_FINAL = 10.0**      # Simulation time
+- **N_STEPS = int(T_FINAL / DT)**    # Number of steps
+
+---
+
+## Visualization
+
+All solvers use `plot_results.py` for standardized output:
+
+### 3D Phase Space Plot
+Trajectory in $(x, y, z)$ space showing the famous "butterfly" attractor.      
+
+### 2D Projections
+Three-panel figure with:
+- XY plane: $y$ vs $x$
+- XZ plane: $z$ vs $x$
+- YZ plane: $z$ vs $y$
+
+### Error Divergence Plot
+Logarithmic plot of Euclidean distance:
+$$d(t) = \sqrt{(x_{cl} - x_q)^2 + (y_{cl} - y_q)^2 + (z_{cl} - z_q)^2}$$       
+
+Reveals three phases:
+1. Initial fidelity: Error at floating-point precision floor
+2. Lyapunov divergence: Exponential growth (positive Lyapunov exponent)        
+3. Saturation: Bounded by attractor geometry
+
+```python
+from lorenz.plot_results import plot_lorenz_comparison
+
+plot_lorenz_comparison(
+    t_quantum, x_q, y_q, z_q,
+    t_classical, x_cl, y_cl, z_cl,
+    title="Lorenz Attractor — Block Encoding",
+    quantum_label="Quantum",
+    classical_label="Classical (Euler)",
+    save_dir="figures/",
+    prefix_name="output",
+)
+```
+
+---
+
+## Origin Trap Phenomenon
+
+When using finite-shot measurements, variables can become exactly zero due to discretization. Since $(0, 0, 0)$ is a saddle-point equilibrium of the Lorenz equations, the system may become permanently trapped.
+
+**Mitigation**: Apply stochastic micro-dithering:
+
+```python
+EPSILON = 1e-6
+# Prevent exact zero
+x = x if abs(x) > EPSILON else x + np.random.uniform(-EPSILON, EPSILON)        
+```
+
+---
+
+## Solvers in this Directory
+
+| Subdirectory | Method | Description |
+| :--- | :--- | :--- |
+| `block_encoding/` | `sqrtm` BE | Standard block-encoding via matrix completion |
+| `pauli_lcu/` | Pauli-LCU | LCU with Pauli decomposition (optimized) |
+| `sfable/` | S-FABLE | Sparse FABLE in Walsh-Hadamard basis |
+| `fable/` | FABLE | Original FABLE block-encoding |
+| `block_encoding_iqae/` | IQAE | Iterative Quantum Amplitude Estimation |

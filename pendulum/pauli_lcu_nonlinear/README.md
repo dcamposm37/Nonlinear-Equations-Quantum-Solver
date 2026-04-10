@@ -34,6 +34,11 @@ which is exactly the nonlinear forward-Euler discretization.
 ## 3. Usage
 
 ```bash
-python -m pendulum.pauli_lcu_nonlinear.pauli_lcu_nonlinear_statevector
 python -m pendulum.pauli_lcu_nonlinear.pauli_lcu_nonlinear_measurements
 ```
+
+## 4. References
+
+1. **Liu, J.-P., Kolden, H. O., Krovi, H. K., Loureiro, N. F., Trivisa, K., & Childs, A. M.** (2021). *Efficient quantum algorithm for dissipative nonlinear differential equations*. Proceedings of the National Academy of Sciences, 118(35). [arXiv:2011.03185](https://arxiv.org/abs/2011.03185)
+2. **Krovi, H.** (2023). *Improved quantum algorithms for linear and nonlinear differential equations*. Quantum, 7, 913. [arXiv:2202.01054](https://arxiv.org/abs/2202.01054)
+3. **Childs, A. M. & Wiebe, N.** (2012). *Hamiltonian simulation using linear combinations of unitary operations*. Quantum Information & Computation, 12(11-12), 901-924.
