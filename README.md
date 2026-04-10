@@ -19,21 +19,16 @@ Lorenz system.
 ```
 ├── pendulum/
 │   ├── classical.py            Classical reference solutions (Euler, RK4, analytical)
-│   ├── plot_results.py         Standardised 3-panel comparison plots
-│   ├── solvers/
-│   │   ├── lcu_linear_statevector.py
-│   │   ├── lcu_linear_measurements.py
-│   │   ├── lcu_nonlinear_statevector.py
-│   │   └── lcu_nonlinear_measurements.py
-│   ├── rotations/
-│   │   ├── linear_statevector.py
-│   │   ├── linear_measurements.py
-│   │   ├── nonlinear_statevector.py
-│   │   └── nonlinear_measurements.py
-│   └── figures/                Generated plots
+│   ├── plot_results.py         Standardised 2-panel and 3-panel comparison plots
+│   ├── pauli_lcu_linear/       Linear pendulum via LCU
+│   ├── pauli_lcu_nonlinear/    Nonlinear pendulum via LCU + Effective Frequency
+│   ├── rotations_linear/       Linear pendulum via unitary rotations (1-qubit)
+│   └── rotations_nonlinear/    Nonlinear pendulum via hybrid rotations
 │
-├── lorenz/                     Lorenz system (TODO)
-│   ├── solvers/
+├── lorenz/                     Lorenz system methods
+│   ├── pauli_lcu/              Optimized Pauli-LCU with MLE
+│   ├── sfable/                 S-FABLE legacy solver
+│   ├── block_encoding/         Standard block-encoding routines
 │   ├── plot_results.py
 │   ├── classical.py
 │   └── figures/
@@ -52,13 +47,14 @@ Lorenz system.
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Run one solver
-python -m pendulum.solvers.lcu_linear_statevector
+# 2. Run the latest optimized LCU solver for Lorenz
+python -m lorenz.pauli_lcu.pauli_lcu_measurements
 
-# 3. Or use Make
+# 3. Run a pendulum solver
+python -m pendulum.pauli_lcu_linear.pauli_lcu_linear_statevector
+
+# 4. Or use Make
 make run-lcu-lin-sv
-make figures          # regenerate all statevector figures
-make docs             # compile LaTeX → PDF
 ```
 
 ## Key results
