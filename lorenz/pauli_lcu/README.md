@@ -34,12 +34,6 @@ This choice is natural for quantum computing because:
 
 ## 2. Circuit Architecture
 
-The LCU circuit consists of three sub-routines applied sequentially on $n_{\text{anc}} + n_{\text{sys}}$ qubits:
-
-```
-|0>_anc  --- PREP ---- SELECT ---- PREP_dag --- <0| projection
-|psi>_sys --- ---- ---- P_j's  ---- ----    --- output state
-```
 
 ### 2.1 PREP (State Preparation)
 
@@ -71,15 +65,7 @@ $$\langle 0_{\text{anc}} | \, \mathcal{U}_{\text{LCU}} \, | 0_{\text{anc}} \rang
 
 ## 3. Application to the Lorenz System
 
-### 3.1 Carleman Linearization
-
-The nonlinear Lorenz equations are transformed into a closed linear system via truncated **Carleman linearization** [5, 6], introducing auxiliary variables $v_4 = xz$ and $v_5 = xy$ to capture the quadratic nonlinearities:
-
-$$\vec{v} = (x, \, y, \, z, \, xz, \, xy, \, 0, \, 0, \, 0)^T$$
-
-The Euler time-stepping then becomes a matrix-vector multiplication: $\vec{v}(t + dt) = A \cdot \vec{v}(t)$.
-
-### 3.2 Similarity Transformation
+### 3.1 Similarity Transformation
 
 A diagonal preconditioning matrix $S = \text{diag}(w_1, \ldots, w_8)$ is applied to balance the magnitudes of different state components and reduce the spectral radius of the scaled matrix:
 
@@ -87,7 +73,7 @@ $$A_{\text{scaled}} = S \, A \, S^{-1}$$
 
 This is a standard similarity transformation that preserves the eigenvalues of $A$ while improving the numerical conditioning of the block-encoding.
 
-### 3.3 Quantum Simulation Loop
+### 3.2 Quantum Simulation Loop
 
 At each Euler time step:
 
@@ -99,7 +85,7 @@ At each Euler time step:
 6. **Rescale**: multiply by $\lambda \cdot \|\vec{v}_{\text{sc}}\|$ and apply $S^{-1}$
 7. **Re-enforce** auxiliary quadratic constraints: $v_4 \leftarrow xz$, $v_5 \leftarrow xy$
 
-### 3.4 Implementation Details
+### 3.3 Implementation Details
 
 | Parameter | Value |
 |-----------|-------|
