@@ -39,7 +39,7 @@ BETA = 8.0 / 3.0
 X0, Y0, Z0 = 1.0, 1.0, 1.0
 T_FINAL = 10.0
 N_STEPS = int(T_FINAL / DT)
-SHOTS = 20000     # Default simulated hardware shots
+SHOTS = 100000    # Default simulated hardware shots
 FABLE_CUTOFF = 1e-4    # Sparse FABLE threshold cutoff
 
 SAVE_DIR = os.path.join(os.path.dirname(__file__), "figures")
@@ -79,8 +79,7 @@ def next_step_sfable_meas(input_state_scaled, physical_state, norm_A, sfable_cir
     result = simulator.run(qc, shots=current_shots).result()
     counts = result.get_counts()
 
-    # Floor mitigation removed to avoid artificial scaling multiplier error
-    p_min = 0.0
+    p_min = 0.5 / current_shots
     p_x = max(counts.get(st_x, 0) / current_shots, p_min)
     p_y = max(counts.get(st_y, 0) / current_shots, p_min)
     p_z = max(counts.get(st_z, 0) / current_shots, p_min)
