@@ -2,18 +2,6 @@
 
 This repository implements quantum algorithms for solving nonlinear ordinary differential equations (ODEs), with a focus on high-fidelity simulation of the **simple pendulum** and the **Lorenz system**.
 
----
-
-## 🔬 Implemented Methods
-
-| Method | Target System | Statevector | Measurements |
-| :--- | :--- | :---: | :---: |
-| **Linear Combination of Unitaries (LCU)** | Pendulum (Linear & Nonlinear) | ✅ | ✅ |
-| **Unitary Rotation Gates** | Pendulum (Linear & Nonlinear) | ✅ | ✅ |
-| **Standard Block Encoding** (`sqrtm`) | Lorenz System | ✅ | ✅ |
-| **Pauli-LCU** (Householder Prep) | Lorenz System | ✅ | ✅ |
-| **Sparse FABLE** (S-FABLE) | Lorenz System | ✅ | ✅ |
-| **FABLE** | Lorenz System | ✅ | 🔲 |
 
 ---
 
