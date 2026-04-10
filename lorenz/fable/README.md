@@ -1,167 +1,104 @@
-# FABLE - Fast Approximate Block Encoding for Lorenz System
+# FABLE: Fast Approximate Block Encoding for Lorenz System
 
-## Descripción General
+This directory implements the simulation of the **Lorenz attractor** using **FABLE** (Fast Approximate Block Encoding), an efficient technique for encoding matrices into quantum circuits. FABLE is particularly effective for matrices that are approximately unitary or have a clear block-unitary structure.
 
-Esta carpeta implementa la simulación del **atractor de Lorenz** utilizando **FABLE** (Fast Approximate Block Encoding), una técnica eficiente para codificar matrices en circuitos cuánticos. FABLE es particularmente útil para matrices que son aproximadamente unitarias o tienen bloques unitarios.
+The chaotic 3D Lorenz system is described by:
 
-El sistema de Lorenz caótico tridimensional:
+$$\frac{dx}{dt} = \sigma(y - x)$$
+$$\frac{dy}{dt} = x(\rho - z) - y$$
+$$\frac{dz}{dt} = xy - \beta z$$
 
-```
-dx/dt = σ(y - x)
-dy/dt = x(ρ - z) - y
-dz/dt = xy - βz
-```
+---
 
-## Archivos
+## 1. Files
 
-| Archivo | Descripción |
-|---------|-------------|
-| `fable_statevector.py` | Simulación exacta usando statevector con la librería FABLE |
+| File | Description |
+|---|---|
+| `fable_statevector.py` | Exact simulation using the statevector method via the FABLE library. |
 
-## ¿Qué es FABLE?
+---
 
-**FABLE** (Fast Approximate Block Encoding) es un algoritmo que construye circuitos cuánticos para codificar matrices de forma eficiente, especialmente cuando la matriz tiene estructura especial (como ser dispersa o aproximadamente unitaria).
+## 2. What is FABLE?
 
-### Ventajas de FABLE
+**FABLE** (Fast Approximate Block Encoding) is an algorithm that constructs quantum circuits to encode matrices efficiently. It is designed to exploit the structure of the target matrix (such as sparsity or near-unitarity) to minimize circuit depth.
 
-- **Eficiencia**: Menor profundidad de circuito que block encoding estándar
-- **Sin qubits ancilla adicionales**: Usa solo los qubits necesarios para la matriz
-- **Aproximación controlada**: Permite establecer umbrales de corte para elementos pequeños
+### Key Advantages
+- **Efficiency**: Significantly lower circuit depth compared to standard block encoding.
+- **No Additional Ancilla Qubits**: Uses only the qubits required to represent the matrix.
+- **Controlled Approximation**: Allows setting a "cutoff" threshold to prune small elements, further reducing complexity.
 
-## Principio del Algoritmo
+---
 
-### 1. Codificación del Sistema de Lorenz
+## 3. Algorithm Principle
 
-La matriz de evolución de Euler de 8×8 se construye como:
+### 3.1 Lorenz System Encoding
+The 8×8 Euler evolution matrix $A$ is constructed as:
 
-```
-A = [1-dt·σ   dt·σ      0       0     0  0  0  0]
-    [dt·ρ     1-dt      0     -dt     0  0  0  0]
-    [0        0     1-dt·β     0    dt  0  0  0]
-    [0        0         0       1     0  0  0  0]
-    [0        0         0       0     1  0  0  0]
-    ...
-```
+$$A = \begin{pmatrix} 
+1-\Delta t \sigma & \Delta t \sigma & 0 & 0 & 0 & 0 & 0 & 0 \\ 
+\Delta t \rho & 1-\Delta t & 0 & -\Delta t & 0 & 0 & 0 & 0 \\ 
+0 & 0 & 1-\Delta t \beta & 0 & \Delta t & 0 & 0 & 0 \\ 
+0 & 0 & 0 & 1 & 0 & 0 & 0 & 0 \\ 
+0 & 0 & 0 & 0 & 1 & 0 & 0 & 0 \\ 
+\vdots & \vdots & \vdots & \vdots & \vdots & \ddots & \vdots & \vdots
+\end{pmatrix}$$
 
-Incluye variables auxiliares para capturar las no linealidades (xz y xy).
+This includes auxiliary variables to capture technical nonlinearities (products $xz$ and $xy$).
 
-### 2. Transformación de Similaridad
+### 3.2 Similarity Transformation
+To ensure numerical stability on quantum hardware, a diagonal scaling is applied:
+$$W = \text{diag}[1/20, 1/30, 1/50, 1/1000, 1/600, 1, 1, 1]$$
+$$A_{\text{scaled}} = W \cdot A \cdot W^{-1}$$
 
-Se aplica un escalado diagonal para estabilidad numérica:
+### 3.3 Step-by-Step Evolution
+For each time step:
+1.  **State Preparation**: $|\psi_0\rangle = \text{scaled\_state} / \|\text{scaled\_state}\|$
+2.  **Circuity Generation**: The FABLE compiler generates a circuit such that $U|0\rangle|\psi_0\rangle \approx |\Phi\rangle$, where the $|0\rangle$ sub-block contains $A_{scaled}$.
+3.  **Amplitude Extraction**: Amplitudes are retrieved from the statevector where ancillas are in the $|0\rangle$ state.
+4.  **Rescaling**: The variables are mapped back to their physical range: $x_{new} = |x_{sv}| \cdot 2^n \cdot \|A\| \cdot \|\text{state}\|$.
 
-```
-W = diag[1/20, 1/30, 1/50, 1/1000, 1/600, 1, 1, 1]
-A_scaled = W · A · W⁻¹
-```
+### 3.4 Structural Sign Heuristic
+Since block-encoding typically provides magnitudes, signs are determined by temporal continuity (inertia):
+- $\Delta x = \Delta t \cdot \sigma \cdot (y_{prev} - x_{prev})$
+- $\text{sign}_x = +1$ if $(x_{prev} + \Delta x) \ge 0$, else $-1$.
+- Auxiliary variables are updated as: $xz = \text{sign}_x \cdot \text{sign}_z \cdot |xz_{raw}|$.
 
-### 3. Construcción del Circuito FABLE
+---
 
-```python
-from fable import fable
-fable_circ, alpha_fable = fable(A_normalized)
-```
+## 4. Key Features
+- **Measurement-Noise Free**: Uses the exact statevector simulator.
+- **Circuit Optimization**: FABLE minimizes depth by exploiting matrix regularity.
+- **Origin Trap Mitigation**: Initial conditions are padded to prevent zero-amplitude starvation at the saddle point.
+- **Automatic Compression**: Elements smaller than the `FABLE_CUTOFF` (e.g., $10^{-4}$) are automatically ignored.
 
-FABLE construye automáticamente un circuito cuántico que implementa el block encoding aproximado de la matriz.
+---
 
-### 4. Evolución Paso a Paso
-
-Para cada paso de tiempo:
-
-1. **Preparar estado**: `|ψ₀⟩ = scaled_state / ‖scaled_state‖`
-2. **Aplicar FABLE**: `|ψ'⟩ = FABLE(A) |0...0⟩ ⊗ |ψ₀⟩`
-3. **Extraer amplitudes**: Del statevector donde ancillas = |0...0⟩
-4. **Rescaling**: `x_new = |x_sv| · 2ⁿ · ‖A‖ · ‖state‖`
-
-### 5. Heurística de Signo (Estructural)
-
-FABLE proporciona magnitudes absolutas. Los signos se determinan por continuidad:
-
-```
-dx = dt·σ·(y_prev - x_prev)
-sign_x = +1 si (x_prev + dx) ≥ 0
-```
-
-Luego se aplican los signos a las variables auxiliares:
-- `xz = sign_x · sign_z · |xz_raw|`
-- `xy = sign_x · sign_y · |xy_raw|`
-
-### 6. Restricción Geométrica
-
-Después de cada paso, se reimponen las relaciones no lineales:
-
-```
-state[3] = state[0] · state[2]  # xz = x·z
-state[4] = state[0] · state[1]  # xy = x·y
-```
-
-Esto garantiza consistencia con la física del sistema.
-
-## Características Clave
-
-- **Sin ruido de medición**: Usa statevector exacto
-- **Eficiencia de circuito**: FABLE optimiza la profundidad del circuito
-- **Protección contra "origin trap"**: Estados inicializados con padding en ceros
-- **Compresión automática**: FABLE puede ignorar elementos menores a un umbral
-
-## Parámetros
-
-| Parámetro | Valor | Descripción |
-|-----------|-------|-------------|
-| `DT` | 0.01 | Paso de tiempo |
-| `SIGMA` | 10.0 | Número de Prandtl |
-| `RHO` | 28.0 | Número de Rayleigh |
-| `BETA` | 8/3 | Proporción geométrica |
-| `X0, Y0, Z0` | (1, 1, 1) | Condiciones iniciales |
-| `T_FINAL` | 10.0 | Tiempo total de simulación |
-
-## Uso
+## 5. Usage
 
 ```bash
 python -m lorenz.fable.fable_statevector
 ```
 
-## Salidas
-
-Los resultados se guardan en:
-- `figures/lorenz_fable_sv_3d.png` - Visualización 3D del atractor
-- `figures/lorenz_fable_sv_2d.png` - Proyecciones 2D (XY, XZ, YZ)
-- `figures/lorenz_fable_sv_error_log.png` - Gráfico de divergencia de error
-
-## Comparación: Block Encoding vs FABLE
-
-| Aspecto | Block Encoding Estándar | FABLE |
-|---------|------------------------|-------|
-| Qubits ancilla | 1+ | 0 (solo qubits de datos) |
-| Profundidad | Mayor | Menor (optimizada) |
-| Precisión | Exacta (unitaria) | Aproximada (con umbral) |
-| Construcción | Manual (matriz extendida) | Automática (librería) |
-| Compresión | No | Sí (umbrales de corte) |
-
-## Variante: S-FABLE
-
-Existe una variante **S-FABLE** (Sparse FABLE) que:
-- Transforma la matriz a la base de Walsh-Hadamard: `M = Hⁿ · A · Hⁿ`
-- Aplica FABLE a M (más disperso en esta base)
-- Recupera el estado aplicando Hⁿ al final
-
-Esto puede ofrecer mejor compresión para matrices dispersas. Ver `lorenz/sfable/`.
-
-## Dependencias
-
+### Dependencies
 ```bash
 pip install fable-circuits
 ```
 
-Librería oficial de FABLE para Python.
+---
 
-## Limitaciones
+## 6. Comparison: Standard Block Encoding vs. FABLE
 
-1. **Heurística de signo**: Requiere continuidad temporal
-2. **Heurística estructural**: Requiere reimposición manual de xz = x·z
-3. **Complejidad**: Aunque optimizado, sigue siendo exponencial en el número de qubits
+| Aspect | Standard Block Encoding | FABLE |
+|---|---|---|
+| **Ancilla Qubits** | 1+ | 0 (data qubits only) |
+| **Depth** | Higher | Lower (Optimized) |
+| **Precision** | Exact (Unitary) | Approximate (Threshold-based) |
+| **Construction** | Manual (Extended Matrix) | Automatic (Compiler-based) |
+| **Compression** | No | Yes (Threshold Pruning) |
 
-## Referencias
+---
 
+## 7. References
 1. **Camps, E., et al.** (2022). *FABLE: Fast Approximate Block Encodings*. arXiv preprint.
 2. **Lorenz, E. N.** (1963). *Deterministic Nonperiodic Flow*. Journal of the Atmospheric Sciences.
 3. **Qiskit Contributors.** (2023). *Qiskit: An open-source framework for quantum computing*.
