@@ -44,16 +44,8 @@ Nonlinear-Equations-Quantum-Solver/
   https://github.com/your-username/Nonlinear-Equations-Quantum-Solver.git        
   cd Nonlinear-Equations-Quantum-Solver
 
-  # 2. Create virtual environment (recommended)
-  python -m venv venv
-  source venv/bin/activate  # Linux/Mac
-  # or: venv\Scripts\activate  # Windows
-
   # 3. Install dependencies
   pip install -r requirements.txt
-
-  # 4. (Optional) Install FABLE for S-FABLE solver
-  pip install fable-circuits
  ---
   Dependencies
 
@@ -82,7 +74,7 @@ Nonlinear-Equations-Quantum-Solver/
   # Lorenz - S-FABLE
   python -m lorenz.sfable.sfable_statevector
 ```
-Using Make
+### Using Make
 ```bash
   make run-lcu-lin-sv       # LCU linear statevector
   make run-lcu-nlin-sv      # LCU nonlinear statevector

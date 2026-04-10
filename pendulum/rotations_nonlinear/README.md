@@ -20,16 +20,7 @@ Where:
 
 ---
 
-## 2. The Challenge of Non-Unitarity
-
-Quantum operations are strictly unitary (they conserve the norm $\langle \psi | \psi \rangle = 1$). However, the nonlinear pendulum dynamics exhibit **non-unitary properties** in the reduced phase space:
-1.  The geometrical norm $r = \sqrt{x^2 + y^2}$ is not constant (unlike the linear case).
-2.  Trajectories are elongated or distorted depending on the initial amplitude.
-3.  Standard unitary gates cannot naturally "stretch" or "shrink" the amplitude on current hardware without ancillas or post-selection.
-
----
-
-## 3. Hybrid Quantum-Classical Strategy
+## 2. Hybrid Quantum-Classical Strategy
 
 We overcome these restrictions via a **step-by-step delegation** protocol:
 
@@ -40,7 +31,7 @@ We overcome these restrictions via a **step-by-step delegation** protocol:
 
 ---
 
-## 4. Quantum State Tomography (QST) for 1 Qubit
+## 3. Quantum State Tomography (QST) for 1 Qubit
 
 The measurement-based solver (`measurements.py`) reconstructs the complex state amplitudes using two projections:
 
@@ -50,7 +41,7 @@ The measurement-based solver (`measurements.py`) reconstructs the complex state 
 
 ---
 
-## 5. Standard Parameters
+## 4. Standard Parameters
 
 | Parameter | Value | Description |
 |---|---|---|
@@ -63,7 +54,7 @@ The measurement-based solver (`measurements.py`) reconstructs the complex state 
 
 ---
 
-## 6. Results
+## 5. Results
 
 ### Statevector (Exact)
 ![Rotation Nonlinear SV](figures/rotation_nonlinear_sv.png)
@@ -73,18 +64,7 @@ The measurement-based solver (`measurements.py`) reconstructs the complex state 
 
 ---
 
-## 7. Comparison: Linear vs. Nonlinear
-
-| Feature | Linear | Nonlinear |
-|---|---|---|
-| Equation | $\ddot{x} + \omega^2 x = 0$ | $\ddot{x} + \omega^2 \sin(x) = 0$ |
-| Period | Constant ($T = 2\pi/\omega$) | Amplitude-dependent |
-| Unitarity | Strictly Unitary | Hybrid (Classical normalization) |
-| Phase Orbit | Perfect Ellipse | Distorted (Pendular) |
-
----
-
-## 8. Usage
+## 6. Usage
 
 ```bash
 # Exact simulation
@@ -96,7 +76,7 @@ python -m pendulum.rotations_nonlinear.rotations_nonlinear_measurements
 
 ---
 
-## 9. References
+## 7. References
 
 1. **Nielsen, M. A. & Chuang, I. L.** (2010). *Quantum Computation and Quantum Information*. Cambridge University Press.
 2. **Liu, J.-P., et al.** (2021). *Efficient quantum algorithm for dissipative nonlinear differential equations*. PNAS, 118(35). [arXiv:2011.03185](https://arxiv.org/abs/2011.03185)
