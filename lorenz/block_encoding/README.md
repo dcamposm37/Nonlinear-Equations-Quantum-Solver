@@ -17,3 +17,15 @@ This solver provides the **ideal algebraic limit** of the quantum evolution.
 
 ## Operation Principle
 Both solvers utilize a similarity scaling transformation (Similarity matrix $S$) to map the physical coordinates into a scaled Hilbert space where the propagator $A$ is effectively block-encoded into a unitary operator $U$. The evolution corresponds to applying the unitary $U$ to the current state and post-selecting on the ancilla register being in the $|0\rangle$ state.
+
+## Results
+
+### Statevector (Adaptive)
+![BE SV 3D](figures/lorenz_be_adaptive_3d.png)
+![BE SV 2D](figures/lorenz_be_adaptive_2d.png)
+![BE SV Error](figures/lorenz_be_adaptive_error_log.png)
+
+### Measurements (Noisy)
+![BE Meas 3D](figures/lorenz_be_meas_3d.png)
+![BE Meas 2D](figures/lorenz_be_meas_2d.png)
+![BE Meas Error](figures/lorenz_be_meas_error_log.png)

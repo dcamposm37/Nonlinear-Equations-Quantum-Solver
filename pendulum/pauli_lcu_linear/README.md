@@ -33,7 +33,15 @@ The circuit uses 2 ancilla qubits to prepare the superposition of these operator
 - Reconstructs variables via **Quantum State Tomography (QST)**.
 - **Observed Effect**: Spiritual decay of the trajectory due to the cumulative post-selection success probability $P \approx 1/\lambda^2 < 1$.
 
-## 3. Usage
+## 3. Results
+
+### Statevector (Exact)
+![LCU Linear SV](figures/lcu_linear_sv.png)
+
+### Measurements (Noisy)
+![LCU Linear Meas](figures/lcu_linear_meas.png)
+
+## 4. Usage
 
 ```bash
 # Run exact simulation

@@ -206,7 +206,19 @@ counts = AerSimulator().run(qc, shots=20000).result().get_counts()
 
 ---
 
-## 6. Files
+## 6. Results
+
+### Statevector (Exact)
+![Pauli-LCU SV 3D](figures/lorenz_pauli_lcu_3d.png)
+![Pauli-LCU SV 2D](figures/lorenz_pauli_lcu_2d.png)
+![Pauli-LCU SV Error](figures/lorenz_pauli_lcu_error_log.png)
+
+### Measurements (Noisy)
+![Pauli-LCU Meas 3D](figures/lorenz_pauli_lcu_meas_3d.png)
+![Pauli-LCU Meas 2D](figures/lorenz_pauli_lcu_meas_2d.png)
+![Pauli-LCU Meas Error](figures/lorenz_pauli_lcu_meas_error_log.png)
+
+## 7. Files
 
 | File | Description |
 |------|-------------|

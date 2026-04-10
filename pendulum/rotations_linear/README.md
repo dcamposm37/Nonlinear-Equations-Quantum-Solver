@@ -24,7 +24,15 @@ where $\Delta \theta = - \omega \Delta t$.
 - Reconstructs $x$ and $y$ via 2-basis tomography ($Z$ for magnitudes, $X$ for relative sign).
 - Shows how shot noise introduces jitter without the catastrophic "spiraling" decay seen in post-selected methods.
 
-## 3. Usage
+## 3. Results
+
+### Statevector (Exact)
+![Rotation Linear SV](figures/rotation_linear_sv.png)
+
+### Measurements (Noisy)
+![Rotation Linear Meas](figures/rotation_linear_meas.png)
+
+## 4. Usage
 
 ```bash
 python -m pendulum.rotations_linear.rotations_linear_measurements

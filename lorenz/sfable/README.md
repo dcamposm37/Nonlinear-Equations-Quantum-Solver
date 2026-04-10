@@ -13,3 +13,15 @@ The original Cartesian state representations are recovered by geometrically mapp
 $$ Circuit = (I \otimes H^{\otimes n}) · FABLE(M) · (I \otimes H^{\otimes n}) $$
 
 This achieves drastically reduced circuit depths while preserving mathematical coherence. The Statevector implementation highlights depth savings, while the Measurements simulations show physical viability over stochastic constraints.
+
+## Results
+
+### Statevector (Exact)
+![S-FABLE SV 3D](figures/lorenz_sfable_sv_3d.png)
+![S-FABLE SV 2D](figures/lorenz_sfable_sv_2d.png)
+![S-FABLE SV Error](figures/lorenz_sfable_sv_error_log.png)
+
+### Measurements (Noisy)
+![S-FABLE Meas 3D](figures/lorenz_sfable_meas_3d.png)
+![S-FABLE Meas 2D](figures/lorenz_sfable_meas_2d.png)
+![S-FABLE Meas Error](figures/lorenz_sfable_meas_error_log.png)

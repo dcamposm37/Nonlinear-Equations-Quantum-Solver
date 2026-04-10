@@ -31,7 +31,15 @@ which is exactly the nonlinear forward-Euler discretization.
 - Simulates shot noise and QST.
 - **Sensitivity**: In the nonlinear regime, measurement noise in $x_n$ feeds back into the dynamic $\omega^2_{\text{eff}}$ calculation, potentially amplifying trajectory drift.
 
-## 3. Usage
+## 3. Results
+
+### Statevector (Exact)
+![LCU Nonlinear SV](figures/lcu_nonlinear_sv.png)
+
+### Measurements (Noisy)
+![LCU Nonlinear Meas](figures/lcu_nonlinear_meas.png)
+
+## 4. Usage
 
 ```bash
 python -m pendulum.pauli_lcu_nonlinear.pauli_lcu_nonlinear_measurements

@@ -24,7 +24,15 @@ This allows simulating complex nonlinear oscillations on a single qubit without 
 - Reconstructs variables via QST with finite shots.
 - Evaluates the stability of the hybrid normalization under stochastic sampling noise.
 
-## 4. Usage
+## 4. Results
+
+### Statevector (Exact)
+![Rotation Nonlinear SV](figures/rotation_nonlinear_sv.png)
+
+### Measurements (Noisy)
+![Rotation Nonlinear Meas](figures/rotation_nonlinear_meas.png)
+
+## 5. Usage
 
 ```bash
 python -m pendulum.rotations_nonlinear.rotations_nonlinear_measurements
