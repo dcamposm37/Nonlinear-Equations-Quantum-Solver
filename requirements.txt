@@ -5,6 +5,7 @@ matplotlib>=3.7
 # Quantum computing
 qiskit>=1.0
 qiskit-aer>=0.13
+fable-circuits
 
 # Code quality (optional)
 flake8>=6.0
