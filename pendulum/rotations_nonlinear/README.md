@@ -73,18 +73,7 @@ The measurement-based solver (`measurements.py`) reconstructs the complex state 
 
 ---
 
-## 7. Comparison: Linear vs. Nonlinear
-
-| Feature | Linear | Nonlinear |
-|---|---|---|
-| Equation | $\ddot{x} + \omega^2 x = 0$ | $\ddot{x} + \omega^2 \sin(x) = 0$ |
-| Period | Constant ($T = 2\pi/\omega$) | Amplitude-dependent |
-| Unitarity | Strictly Unitary | Hybrid (Classical normalization) |
-| Phase Orbit | Perfect Ellipse | Distorted (Pendular) |
-
----
-
-## 8. Usage
+## 7. Usage
 
 ```bash
 # Exact simulation
@@ -96,7 +85,7 @@ python -m pendulum.rotations_nonlinear.rotations_nonlinear_measurements
 
 ---
 
-## 9. References
+## 8. References
 
 1. **Nielsen, M. A. & Chuang, I. L.** (2010). *Quantum Computation and Quantum Information*. Cambridge University Press.
 2. **Liu, J.-P., et al.** (2021). *Efficient quantum algorithm for dissipative nonlinear differential equations*. PNAS, 118(35). [arXiv:2011.03185](https://arxiv.org/abs/2011.03185)
