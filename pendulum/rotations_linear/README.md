@@ -20,11 +20,19 @@ where $\Delta \theta = - \omega \Delta t$.
 - Simulates the exact unitary rotation.
 - Demonstrates perfect energy conservation across many cycles.
 
-### 2.2 Measurement-Based (`rotations_linear_measurements.py`)
-- Reconstructs $x$ and $y$ via 2-basis tomography ($Z$ for magnitudes, $X$ for relative sign).
-- Shows how shot noise introduces jitter without the catastrophic "spiraling" decay seen in post-selected methods.
+### 3. Quantum State Tomography (QST) for 1 Qubit
 
-## 3. Results
+Since a quantum computer does not allow direct access to the state amplitudes, the measurement-based solver (`measurements.py`) reconstructs the state $(\theta, \dot{\theta})$ using a two-basis tomography protocol:
+
+1.  **Magnitude Reconstruction (Z-Basis)**:
+    Measuring the qubit in the computational basis $\{|0\rangle, |1\rangle\}$ yields the probabilities $P(0)$ and $P(1)$. Based on Born's rule, the magnitudes of the state components are:
+    $$|x| = \sqrt{P(0)}, \quad |y| = \sqrt{P(1)}$$
+2.  **Sign/Phase Reconstruction (X-Basis)**:
+    Z-basis measurements destroy phase information (signs). To recover the relative sign between $x$ and $y$, the qubit is rotated into the X-basis using a Hadamard gate ($H$) before measurement. The expectation value $\langle X \rangle = (c_0 - c_1)/N_{shots}$ determines if the velocity is positive or negative relative to the position.
+3.  **Global Phase Heuristic**:
+    $1$-qubit tomography has a global $\pm 1$ ambiguity. We resolve this by applying a **Spatial Continuity Heuristic**: the result is compared to the classical one-step Euler prediction, and the global sign that minimizes the Euclidean distance is selected.
+
+## 4. Results
 
 ### Statevector (Exact)
 ![Rotation Linear SV](figures/rotation_linear_sv.png)
@@ -32,7 +40,7 @@ where $\Delta \theta = - \omega \Delta t$.
 ### Measurements (Noisy)
 ![Rotation Linear Meas](figures/rotation_linear_meas.png)
 
-## 4. Usage
+## 5. Usage
 
 ```bash
 python -m pendulum.rotations_linear.rotations_linear_measurements
