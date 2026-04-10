@@ -28,11 +28,10 @@ from pendulum.plot_results import plot_pendulum_comparison
 # Parameters
 # ---------------------------------------------------------------------------
 OMEGA_0 = 9.8           # Frequency (sqrt(g/l))
-EPSILON = 0.01          # Time step (dt)
+EPSILON = 0.001          # Time step (dt)
 X0 = np.pi / 2          # Initial position
 Y0 = 0.0                # Initial scaled velocity
-N_QUBITS = 12           
-N_STEPS = 2**(N_QUBITS - 1)
+N_STEPS = 5000
 
 FIGURE_PATH = os.path.join(
     os.path.dirname(__file__), "figures", "rotation_linear_sv.png"
