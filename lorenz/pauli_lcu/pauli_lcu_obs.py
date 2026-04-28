@@ -2,19 +2,19 @@
 Pauli-LCU Quantum Circuit -- Lorenz Attractor (Pro, No OAA)
 =======================================================================
 
-Implementación con Medición Directa de Observables de Pauli
-(sin precondicionamiento por desplazamiento).
+Implementation with Direct Measurement of Pauli Observables
+(without shift preconditioning).
 
-Técnica de medición:
-    Se extraen los valores esperados aislando las amplitudes mediante
-    operadores de Pauli (ej. XIX) contra un "ancla" en la columna 5.
-    Esto permite medir amplitudes con su signo intrínseco, sin la
-    necesidad heurísticas clásicas ni de sumar un shift constante.
+Measurement technique:
+    Expected values are extracted by isolating amplitudes using
+    Pauli operators (e.g., XIX) against an "anchor" in column 5.
+    This allows measuring amplitudes with their intrinsic sign, without the
+    need for classical heuristics or adding a constant shift.
 
-    Tras la medición cuántica, se resta A_SHIFT para recuperar las
-    coordenadas físicas reales.
+    After quantum measurement, the coordinates are scaled back to 
+    recover the real physical variables.
 
-Se elimina la tomografía por counts y la heurística de signos.
+Eliminates count-based tomography and sign heuristics.
 """
 
 import os
@@ -38,47 +38,47 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from lorenz.classical import euler_lorenz
 from lorenz.plot_results import plot_lorenz_comparison
 
-# Reutiliza los constructores analíticos del módulo statevector
+# Reuse analytical builders from the statevector module
 from lorenz.pauli_lcu.pauli_lcu_statevector import (
     pauli_decompose,
     build_lcu_unitary,
 )
 
 # ===========================================================================
-# Parámetros Globales
+# Global Parameters
 # ===========================================================================
 
-# -- Parámetros del sistema de Lorenz --------------------------------------
-DT    = 0.01       # Paso temporal de Euler
-SIGMA = 10.0       # Parámetro σ de Lorenz
-RHO   = 28.0       # Parámetro ρ de Lorenz
-BETA  = 8.0 / 3.0  # Parámetro β de Lorenz
+# -- Lorenz system parameters ----------------------------------------------
+DT    = 0.01       # Euler time step
+SIGMA = 10.0       # Lorenz σ parameter
+RHO   = 28.0       # Lorenz ρ parameter
+BETA  = 8.0 / 3.0  # Lorenz β parameter
 
-# -- Condiciones iniciales y duración --------------------------------------
+# -- Initial conditions and duration --------------------------------------
 X0, Y0, Z0 = 1.0, 1.0, 1.0
 T_FINAL = 5.0
 N_STEPS = int(T_FINAL / DT)
 
-# -- Configuración del simulador ------------------------------------------
-SHOTS = 50000  # Número de shots por paso; None = simulación exacta
+# -- Simulator configuration ------------------------------------------
+SHOTS = None  # Number of shots per step; None = exact simulation
 
-# -- Directorio de salida para figuras -------------------------------------
+# -- Output directory for figures -------------------------------------
 SAVE_DIR = os.path.join(os.path.dirname(__file__), "figures")
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-# -- Constantes de precondicionamiento ------------------------------------
-C_ANCHOR = 2.0   # Valor fijo del ancla (índice 5 del vector de estado)
+# -- Preconditioning constants ------------------------------------
+C_ANCHOR = 2.0   # Fixed anchor value (index 5 of the state vector)
 
 # ===========================================================================
-# Construcción de la Matriz de Euler Base
+# Base Euler Matrix Construction
 # ===========================================================================
 def build_euler_matrix(dt, sigma, rho, beta):
     """
-    Construye la matriz de evolución de Euler (8×8) estándar para Lorenz.
+    Builds the standard Euler evolution matrix (8x8) for Lorenz.
 
     Returns
     -------
-    A : ndarray (8, 8)   Matriz de evolución.
+    A : ndarray (8, 8)   Evolution matrix.
     """
     A = np.array([
         # x            y           z          xz     xy    C_ANC  0  0
@@ -106,27 +106,27 @@ def main():
 
     t_values = np.linspace(0, T_FINAL, N_STEPS + 1)
 
-    # -- 1. Matriz de Euler base -------------------------------------------
+    # -- 1. Base Euler matrix -------------------------------------------
     A = build_euler_matrix(DT, SIGMA, RHO, BETA)
 
-    # -- 2. Escalado de similaridad estático -------------------------------
+    # -- 2. Static similarity scaling -------------------------------
     W = np.array([1/20, 1/30, 1/50, 1/1000, 1/600, 1.0, 1.0, 1.0])
     S     = np.diag(W)
     inv_S = np.diag(1.0 / W)
     A_scaled = S @ A @ inv_S
 
-    # -- 3. Descomposición de Pauli ----------------------------------------
+    # -- 3. Pauli decomposition ----------------------------------------
     t0 = time.perf_counter()
     coeffs, pauli_ops, labels = pauli_decompose(A_scaled)
     t_decomp = time.perf_counter() - t0
 
-    n_sys = 3   # 3 qubits de sistema → dim = 8
+    n_sys = 3   # 3 system qubits -> dim = 8
     lam   = float(np.sum(np.abs(coeffs)))
 
     print(f"  Pauli terms     : {len(coeffs)} non-zero  ({t_decomp*1e3:.1f} ms)")
     print(f"  Lambda (LCU)    = {lam:.4f}")
 
-    # -- 4. Construcción del unitario LCU (precomputado una vez) -----------
+    # -- 4. LCU unitary construction (precomputed once) -----------
     t0 = time.perf_counter()
     lcu_unitary, n_anc, lam = build_lcu_unitary(coeffs, pauli_ops, 8)
     t_build = time.perf_counter() - t0
@@ -139,7 +139,7 @@ def main():
     print(f"  System  qubits  : {n_sys}")
     print(f"  Total   qubits  : {total_qubits}\n")
 
-    # -- 5. Observables de Pauli para medición directa ---------------------
+    # -- 5. Pauli observables for direct measurement ---------------------
     P_0 = SparsePauliOp.from_list([("I", 0.5), ("Z", 0.5)])
     P_anc = P_0
     for _ in range(n_anc - 1):
@@ -159,29 +159,29 @@ def main():
     obs_y = P_anc.tensor(O_sys_y)
     obs_z = P_anc.tensor(O_sys_z)
 
-    # -- 6. Componentes reutilizables (gate, simulador, estimator) ---------
+    # -- 6. Reusable components (gate, simulator, estimator) ---------
     lcu_gate  = UnitaryGate(lcu_unitary, label="Pauli_LCU")
     simulator = AerSimulator()
 
-    # -- 7. Inicialización del vector de estado ----------------------------
+    # -- 7. State vector initialization ----------------------------
     #    v = [x₀, y₀, z₀, x₀·z₀, x₀·y₀, C_ANCHOR, 0, 0]
     current_sv = np.array(
         [X0, Y0, Z0, X0 * Z0, X0 * Y0, C_ANCHOR, 0.0, 0.0], dtype=float
     )
 
-    # Historial de coordenadas físicas
+    # History of physical coordinates
     hx, hy, hz = [X0], [Y0], [Z0]
 
-    # -- 8. Bucle de iteración temporal ------------------------------------
+    # -- 8. Time iteration loop ------------------------------------
     print(f"  Running {N_STEPS} steps "
           f"(Estimator, {SHOTS if SHOTS is None else f'{SHOTS:,}'} shots/step) ...")
     t0 = time.perf_counter()
 
     for step in range(N_STEPS):
-        # 8a. Fijar el ancla en el vector de estado
+        # 8a. Fix the anchor in the state vector
         current_sv[5] = C_ANCHOR
 
-        # 8b. Escalar con la matriz de similaridad S y normalizar
+        # 8b. Scale with similarity matrix S and normalize
         current_sv_scaled = S @ current_sv
         norm = np.linalg.norm(current_sv_scaled)
 
@@ -190,7 +190,7 @@ def main():
         else:
             initial_normalized = current_sv_scaled / norm
 
-        # 8c. Preparar el estado cuántico completo (sistema + ancillas)
+        # 8c. Prepare full quantum state (system + ancillas)
         padded_state = np.zeros(2**total_qubits, dtype=complex)
         padded_state[0:dim] = initial_normalized
 
@@ -199,18 +199,18 @@ def main():
             StatePreparation(padded_state.tolist()), range(total_qubits)
         )
         sp_circ = transpile(
-            sp_circ, basis_gates=['u', 'cx'], optimization_level=0
+            sp_circ, basis_gates=['u', 'cx'], optimization_level=3
         )
 
-        # 8d. Construir circuito: preparación + LCU
+        # 8d. Build circuit: preparation + LCU
         qc = QuantumCircuit(total_qubits)
         qc.compose(sp_circ, inplace=True)
         qc.append(lcu_gate, range(total_qubits))
 
-        # 8e. Transpilar para el simulador
+        # 8e. Transpile for the simulator
         transpiled_qc = transpile(qc, simulator)
 
-        # 8f. Ejecutar con Estimator
+        # 8f. Execute with Estimator
         if SHOTS is None:
             estimator = Estimator(approximation=True)
         else:
@@ -222,17 +222,17 @@ def main():
         )
         values = job.result().values
 
-        # 8g. Extracción de coordenadas desde los observables de Pauli
+        # 8g. Extract coordinates from Pauli observables
         x_real = values[0] * (lam * norm)**2 / (2 * C_ANCHOR * S[0,0] * S[5,5])
         y_real = values[1] * (lam * norm)**2 / (2 * C_ANCHOR * S[1,1] * S[5,5])
         z_real = values[2] * (lam * norm)**2 / (2 * C_ANCHOR * S[2,2] * S[5,5])
 
-        # 8i. Guardar la coordenada física
+        # 8i. Save physical coordinates
         hx.append(x_real)
         hy.append(y_real)
         hz.append(z_real)
 
-        # 8j. Reconstrucción algebraica del vector de estado exacto
+        # 8j. Algebraic reconstruction of the exact state vector
         current_sv[0] = x_real
         current_sv[1] = y_real
         current_sv[2] = z_real
@@ -242,7 +242,7 @@ def main():
         current_sv[6] = 0.0
         current_sv[7] = 0.0
 
-        # 8k. Progreso en consola
+        # 8k. Progress update
         pct = 100 * step // N_STEPS
         print(f"\r  [{pct:3d}%]  step {step:4d}/{N_STEPS}  |  "
               f"x={x_real:+9.4f}  "
@@ -252,7 +252,7 @@ def main():
     t_sim = time.perf_counter() - t0
     print(f"\n  [100%]  Done -- {t_sim:.1f} s  ({t_sim/N_STEPS*1e3:.1f} ms/step)\n")
 
-    # -- 9. Referencia clásica y gráficas ----------------------------------
+    # -- 9. Classical reference and plots ----------------------------------
     x_q, y_q, z_q = np.array(hx), np.array(hy), np.array(hz)
     t_cl, x_cl, y_cl, z_cl = euler_lorenz(
         DT, SIGMA, RHO, BETA, X0, Y0, Z0, N_STEPS
