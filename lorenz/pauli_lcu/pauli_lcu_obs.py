@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # -- Qiskit ----------------------------------------------------------------
 from qiskit import QuantumCircuit, transpile
-from qiskit.circuit.library import UnitaryGate, StatePreparation
+from qiskit.circuit.library import UnitaryGate, StatePreparation, RYGate
 from qiskit_aer import AerSimulator
 from qiskit.quantum_info import SparsePauliOp
 from qiskit_aer.primitives import Estimator
@@ -60,7 +60,7 @@ T_FINAL = 5.0
 N_STEPS = int(T_FINAL / DT)
 
 # -- Simulator configuration ------------------------------------------
-SHOTS = None  # Number of shots per step; None = exact simulation
+SHOTS = 20000  # Number of shots per step; None = exact simulation
 
 # -- Output directory for figures -------------------------------------
 SAVE_DIR = os.path.join(os.path.dirname(__file__), "figures")
@@ -92,6 +92,55 @@ def build_euler_matrix(dt, sigma, rho, beta):
         [0,             0,         0,          0,     0,     0,   0, 1]
     ], dtype=float)
     return A
+
+
+# ===========================================================================
+# Analytic State Preparation
+# ===========================================================================
+def build_analytic_initialization(v):
+    """
+    Builds the 3-qubit state preparation circuit analytically
+    using controlled RY rotations. Assumes v[6] = v[7] = 0.
+    """
+    qc = QuantumCircuit(3)
+    
+    # 1. Partial norms
+    norm_00 = np.hypot(v[0], v[1])
+    norm_01 = np.hypot(v[2], v[3])
+    norm_10 = np.hypot(v[4], v[5])
+    norm_11 = 0.0
+    
+    norm_low  = np.hypot(norm_00, norm_01)
+    norm_high = np.hypot(norm_10, norm_11)
+    
+    # 2. Qubit 2 (MSB)
+    theta_2 = 2 * np.arctan2(norm_high, norm_low) if np.hypot(norm_high, norm_low) > 0 else 0.0
+    if theta_2 != 0.0:
+        qc.ry(theta_2, 2)
+    
+    # 3. Qubit 1
+    theta_1_0 = 2 * np.arctan2(norm_01, norm_00) if norm_low > 0 else 0.0
+    if theta_1_0 != 0.0:
+        qc.append(RYGate(theta_1_0).control(1, ctrl_state='0'), [2, 1])
+        
+    theta_1_1 = 2 * np.arctan2(norm_11, norm_10) if norm_high > 0 else 0.0
+    if theta_1_1 != 0.0:
+        qc.append(RYGate(theta_1_1).control(1, ctrl_state='1'), [2, 1])
+        
+    # 4. Qubit 0 (LSB)
+    theta_0_00 = 2 * np.arctan2(v[1], v[0]) if norm_00 > 0 else 0.0
+    if theta_0_00 != 0.0:
+        qc.append(RYGate(theta_0_00).control(2, ctrl_state='00'), [1, 2, 0])
+        
+    theta_0_01 = 2 * np.arctan2(v[3], v[2]) if norm_01 > 0 else 0.0
+    if theta_0_01 != 0.0:
+        qc.append(RYGate(theta_0_01).control(2, ctrl_state='01'), [1, 2, 0])
+        
+    theta_0_10 = 2 * np.arctan2(v[5], v[4]) if norm_10 > 0 else 0.0
+    if theta_0_10 != 0.0:
+        qc.append(RYGate(theta_0_10).control(2, ctrl_state='10'), [1, 2, 0])
+        
+    return qc
 
 
 # ===========================================================================
@@ -190,14 +239,12 @@ def main():
         else:
             initial_normalized = current_sv_scaled / norm
 
-        # 8c. Prepare full quantum state (system + ancillas)
-        padded_state = np.zeros(2**total_qubits, dtype=complex)
-        padded_state[0:dim] = initial_normalized
+        # 8c. Prepare quantum state analytically for system qubits
+        sys_prep_circ = build_analytic_initialization(initial_normalized)
 
         sp_circ = QuantumCircuit(total_qubits)
-        sp_circ.append(
-            StatePreparation(padded_state.tolist()), range(total_qubits)
-        )
+        sp_circ.compose(sys_prep_circ, qubits=range(n_sys), inplace=True)
+
         sp_circ = transpile(
             sp_circ, basis_gates=['u', 'cx'], optimization_level=3
         )

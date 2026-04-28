@@ -34,8 +34,8 @@ import time
 import numpy as np
 
 # -- Qiskit ----------------------------------------------------------------
-from qiskit import QuantumCircuit
-from qiskit.circuit.library import UnitaryGate
+from qiskit import QuantumCircuit, transpile
+from qiskit.circuit.library import UnitaryGate, RYGate
 from qiskit_aer import AerSimulator
 
 # -- Project imports -------------------------------------------------------
@@ -70,6 +70,55 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 # ===========================================================================
 # 1.  Shot-based LCU step  (mirrors block_encoding_measurements pattern)
 # ===========================================================================
+# ===========================================================================
+# Analytic State Preparation
+# ===========================================================================
+def build_analytic_initialization(v):
+    """
+    Builds the 3-qubit state preparation circuit analytically
+    using controlled RY rotations. Assumes v[6] = v[7] = 0.
+    """
+    qc = QuantumCircuit(3)
+    
+    # 1. Partial norms
+    norm_00 = np.hypot(v[0], v[1])
+    norm_01 = np.hypot(v[2], v[3])
+    norm_10 = np.hypot(v[4], v[5])
+    norm_11 = 0.0
+    
+    norm_low  = np.hypot(norm_00, norm_01)
+    norm_high = np.hypot(norm_10, norm_11)
+    
+    # 2. Qubit 2 (MSB)
+    theta_2 = 2 * np.arctan2(norm_high, norm_low) if np.hypot(norm_high, norm_low) > 0 else 0.0
+    if theta_2 != 0.0:
+        qc.ry(theta_2, 2)
+    
+    # 3. Qubit 1
+    theta_1_0 = 2 * np.arctan2(norm_01, norm_00) if norm_low > 0 else 0.0
+    if theta_1_0 != 0.0:
+        qc.append(RYGate(theta_1_0).control(1, ctrl_state='0'), [2, 1])
+        
+    theta_1_1 = 2 * np.arctan2(norm_11, norm_10) if norm_high > 0 else 0.0
+    if theta_1_1 != 0.0:
+        qc.append(RYGate(theta_1_1).control(1, ctrl_state='1'), [2, 1])
+        
+    # 4. Qubit 0 (LSB)
+    theta_0_00 = 2 * np.arctan2(v[1], v[0]) if norm_00 > 0 else 0.0
+    if theta_0_00 != 0.0:
+        qc.append(RYGate(theta_0_00).control(2, ctrl_state='00'), [1, 2, 0])
+        
+    theta_0_01 = 2 * np.arctan2(v[3], v[2]) if norm_01 > 0 else 0.0
+    if theta_0_01 != 0.0:
+        qc.append(RYGate(theta_0_01).control(2, ctrl_state='01'), [1, 2, 0])
+        
+    theta_0_10 = 2 * np.arctan2(v[5], v[4]) if norm_10 > 0 else 0.0
+    if theta_0_10 != 0.0:
+        qc.append(RYGate(theta_0_10).control(2, ctrl_state='10'), [1, 2, 0])
+        
+    return qc
+
+
 def apply_lcu_step_shots(input_state_scaled, physical_state, lam,
                          lcu_gate, dim, total_qubits, simulator, S):
     """
@@ -99,12 +148,19 @@ def apply_lcu_step_shots(input_state_scaled, physical_state, lam,
     initial_normalized = input_state_scaled / norm
 
     # State preparation: |0_garbage> |0_anc> |psi_sys>
-    # System qubits are the FIRST `dim` entries of the full 2^total_qubits vector
-    padded_state = np.zeros(2**total_qubits, dtype=complex)
-    padded_state[0:dim] = initial_normalized
+    # System qubits are the FIRST `n_sys` qubits.
+    n_sys = int(np.log2(dim))
+    
+    sys_prep_circ = build_analytic_initialization(initial_normalized)
+    
+    sp_circ = QuantumCircuit(total_qubits)
+    sp_circ.compose(sys_prep_circ, qubits=range(n_sys), inplace=True)
+    sp_circ = transpile(
+        sp_circ, basis_gates=['u', 'cx'], optimization_level=3
+    )
 
     qc = QuantumCircuit(total_qubits)
-    qc.initialize(padded_state.tolist(), range(total_qubits))
+    qc.compose(sp_circ, inplace=True)
 
     # Apply the LCU unitary
     qc.append(lcu_gate, range(total_qubits))
