@@ -28,6 +28,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # -- Qiskit ----------------------------------------------------------------
 from qiskit import QuantumCircuit, transpile
+from qiskit.circuit import Parameter
 from qiskit.circuit.library import UnitaryGate, StatePreparation, RYGate
 from qiskit_aer import AerSimulator
 from qiskit.quantum_info import SparsePauliOp
@@ -60,7 +61,7 @@ T_FINAL = 5.0
 N_STEPS = int(T_FINAL / DT)
 
 # -- Simulator configuration ------------------------------------------
-SHOTS = 20000  # Number of shots per step; None = exact simulation
+SHOTS = 50000  # Number of shots per step; None = exact simulation
 
 # -- Output directory for figures -------------------------------------
 SAVE_DIR = os.path.join(os.path.dirname(__file__), "figures")
@@ -95,52 +96,73 @@ def build_euler_matrix(dt, sigma, rho, beta):
 
 
 # ===========================================================================
-# Analytic State Preparation
+# Parametric State Preparation (built once, bound per step)
 # ===========================================================================
-def build_analytic_initialization(v):
+def build_parametric_template(n_sys, total_qubits, lcu_gate):
     """
-    Builds the 3-qubit state preparation circuit analytically
-    using controlled RY rotations. Assumes v[6] = v[7] = 0.
+    Builds a parametric quantum circuit with 6 symbolic RY angles
+    for the 3-qubit state preparation, followed by the fixed LCU gate.
+
+    All 6 rotations are always present (RY(0) = Identity when angle is 0).
+    This allows the circuit topology to remain fixed so it can be
+    transpiled once and reused with assign_parameters.
+
+    Returns
+    -------
+    qc     : QuantumCircuit   parametric circuit
+    params : list[Parameter]  the 6 angle parameters [θ₂, θ₁₀, θ₁₁, θ₀₀₀, θ₀₀₁, θ₀₁₀]
     """
-    qc = QuantumCircuit(3)
-    
-    # 1. Partial norms
+    # 6 symbolic parameters
+    theta_2   = Parameter('θ_2')      # qubit 2 (MSB), unconditional
+    theta_1_0 = Parameter('θ_1_0')    # qubit 1, ctrl q2='0'
+    theta_1_1 = Parameter('θ_1_1')    # qubit 1, ctrl q2='1'
+    theta_0_00 = Parameter('θ_0_00')  # qubit 0, ctrl q1q2='00'
+    theta_0_01 = Parameter('θ_0_01')  # qubit 0, ctrl q1q2='01'
+    theta_0_10 = Parameter('θ_0_10')  # qubit 0, ctrl q1q2='10'
+
+    params = [theta_2, theta_1_0, theta_1_1, theta_0_00, theta_0_01, theta_0_10]
+
+    qc = QuantumCircuit(total_qubits)
+
+    # State preparation on system qubits (0, 1, 2)
+    qc.ry(theta_2, 2)
+    qc.append(RYGate(theta_1_0).control(1, ctrl_state='0'), [2, 1])
+    qc.append(RYGate(theta_1_1).control(1, ctrl_state='1'), [2, 1])
+    qc.append(RYGate(theta_0_00).control(2, ctrl_state='00'), [1, 2, 0])
+    qc.append(RYGate(theta_0_01).control(2, ctrl_state='01'), [1, 2, 0])
+    qc.append(RYGate(theta_0_10).control(2, ctrl_state='10'), [1, 2, 0])
+
+    # LCU unitary (fixed)
+    qc.append(lcu_gate, range(total_qubits))
+
+    return qc, params
+
+
+def compute_angles(v):
+    """
+    Computes the 6 RY rotation angles for the binary-tree state preparation
+    from a normalized 8-component state vector. Assumes v[6] = v[7] = 0.
+
+    Returns
+    -------
+    angles : list[float]  [θ₂, θ₁₀, θ₁₁, θ₀₀₀, θ₀₀₁, θ₀₁₀]
+    """
     norm_00 = np.hypot(v[0], v[1])
     norm_01 = np.hypot(v[2], v[3])
     norm_10 = np.hypot(v[4], v[5])
     norm_11 = 0.0
-    
+
     norm_low  = np.hypot(norm_00, norm_01)
     norm_high = np.hypot(norm_10, norm_11)
-    
-    # 2. Qubit 2 (MSB)
-    theta_2 = 2 * np.arctan2(norm_high, norm_low) if np.hypot(norm_high, norm_low) > 0 else 0.0
-    if theta_2 != 0.0:
-        qc.ry(theta_2, 2)
-    
-    # 3. Qubit 1
-    theta_1_0 = 2 * np.arctan2(norm_01, norm_00) if norm_low > 0 else 0.0
-    if theta_1_0 != 0.0:
-        qc.append(RYGate(theta_1_0).control(1, ctrl_state='0'), [2, 1])
-        
-    theta_1_1 = 2 * np.arctan2(norm_11, norm_10) if norm_high > 0 else 0.0
-    if theta_1_1 != 0.0:
-        qc.append(RYGate(theta_1_1).control(1, ctrl_state='1'), [2, 1])
-        
-    # 4. Qubit 0 (LSB)
-    theta_0_00 = 2 * np.arctan2(v[1], v[0]) if norm_00 > 0 else 0.0
-    if theta_0_00 != 0.0:
-        qc.append(RYGate(theta_0_00).control(2, ctrl_state='00'), [1, 2, 0])
-        
-    theta_0_01 = 2 * np.arctan2(v[3], v[2]) if norm_01 > 0 else 0.0
-    if theta_0_01 != 0.0:
-        qc.append(RYGate(theta_0_01).control(2, ctrl_state='01'), [1, 2, 0])
-        
-    theta_0_10 = 2 * np.arctan2(v[5], v[4]) if norm_10 > 0 else 0.0
-    if theta_0_10 != 0.0:
-        qc.append(RYGate(theta_0_10).control(2, ctrl_state='10'), [1, 2, 0])
-        
-    return qc
+
+    theta_2   = 2 * np.arctan2(norm_high, norm_low) if np.hypot(norm_high, norm_low) > 0 else 0.0
+    theta_1_0 = 2 * np.arctan2(norm_01, norm_00)    if norm_low > 0 else 0.0
+    theta_1_1 = 2 * np.arctan2(norm_11, norm_10)    if norm_high > 0 else 0.0
+    theta_0_00 = 2 * np.arctan2(v[1], v[0])          if norm_00 > 0 else 0.0
+    theta_0_01 = 2 * np.arctan2(v[3], v[2])          if norm_01 > 0 else 0.0
+    theta_0_10 = 2 * np.arctan2(v[5], v[4])          if norm_10 > 0 else 0.0
+
+    return [theta_2, theta_1_0, theta_1_1, theta_0_00, theta_0_01, theta_0_10]
 
 
 # ===========================================================================
@@ -208,9 +230,26 @@ def main():
     obs_y = P_anc.tensor(O_sys_y)
     obs_z = P_anc.tensor(O_sys_z)
 
-    # -- 6. Reusable components (gate, simulator, estimator) ---------
+    # -- 6. Reusable components -----------------------------------------
     lcu_gate  = UnitaryGate(lcu_unitary, label="Pauli_LCU")
     simulator = AerSimulator()
+
+    # -- 6b. Build parametric circuit template and transpile ONCE --------
+    print("  Building parametric circuit template...")
+    t0_templ = time.perf_counter()
+    template_qc, params = build_parametric_template(n_sys, total_qubits, lcu_gate)
+    transpiled_template = transpile(template_qc, simulator, optimization_level=1)
+    t_templ = time.perf_counter() - t0_templ
+    print(f"  Template transpiled: depth={transpiled_template.depth()}, "
+          f"gates={transpiled_template.size()}  ({t_templ:.1f} s)\n")
+
+    # -- 6c. Estimator Configuration ------------------------------------
+    if SHOTS is None:
+        estimator = Estimator(approximation=True)
+        mode_label = "Estimator (exact statevector)"
+    else:
+        estimator = Estimator(run_options={"shots": SHOTS})
+        mode_label = f"Estimator (shot-based, {SHOTS:,} shots)"
 
     # -- 7. State vector initialization ----------------------------
     #    v = [x₀, y₀, z₀, x₀·z₀, x₀·y₀, C_ANCHOR, 0, 0]
@@ -222,8 +261,9 @@ def main():
     hx, hy, hz = [X0], [Y0], [Z0]
 
     # -- 8. Time iteration loop ------------------------------------
+    print(f"  Mode: {mode_label}")
     print(f"  Running {N_STEPS} steps "
-          f"(Estimator, {SHOTS if SHOTS is None else f'{SHOTS:,}'} shots/step) ...")
+          f"({SHOTS if SHOTS is None else f'{SHOTS:,}'} shots/step) ...")
     t0 = time.perf_counter()
 
     for step in range(N_STEPS):
@@ -239,32 +279,14 @@ def main():
         else:
             initial_normalized = current_sv_scaled / norm
 
-        # 8c. Prepare quantum state analytically for system qubits
-        sys_prep_circ = build_analytic_initialization(initial_normalized)
+        # 8c. Compute angles and bind to pre-transpiled template
+        angles = compute_angles(initial_normalized)
+        param_dict = dict(zip(params, angles))
+        bound_qc = transpiled_template.assign_parameters(param_dict)
 
-        sp_circ = QuantumCircuit(total_qubits)
-        sp_circ.compose(sys_prep_circ, qubits=range(n_sys), inplace=True)
-
-        sp_circ = transpile(
-            sp_circ, basis_gates=['u', 'cx'], optimization_level=3
-        )
-
-        # 8d. Build circuit: preparation + LCU
-        qc = QuantumCircuit(total_qubits)
-        qc.compose(sp_circ, inplace=True)
-        qc.append(lcu_gate, range(total_qubits))
-
-        # 8e. Transpile for the simulator
-        transpiled_qc = transpile(qc, simulator)
-
-        # 8f. Execute with Estimator
-        if SHOTS is None:
-            estimator = Estimator(approximation=True)
-        else:
-            estimator = Estimator(run_options={"shots": SHOTS})
-
+        # 8d. Execute with Estimator
         job = estimator.run(
-            circuits=[transpiled_qc] * 3,
+            circuits=[bound_qc] * 3,
             observables=[obs_x, obs_y, obs_z],
         )
         values = job.result().values
